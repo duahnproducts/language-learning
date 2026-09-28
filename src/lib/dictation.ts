@@ -4,9 +4,9 @@
  *
  * Trình duyệt tự gửi tiếng nói lên máy chủ nhận dạng của hãng — Google trên
  * Chrome, Apple trên Safari — rồi trả chữ về. Không có cách nào miễn phí khác để
- * nghe được cả tiếng Việt lẫn tiếng Trung trong trình duyệt: mô hình chạy trên
- * máy như Whisper nặng hàng chục MB và nghe tiếng Việt kém. Màn Dịch nói rõ
- * chuyện tiếng nói được gửi đi ngay cạnh nút micro.
+ * nghe được cả tiếng Việt, tiếng Trung lẫn tiếng Anh trong trình duyệt: mô hình
+ * chạy trên máy như Whisper nặng hàng chục MB và nghe tiếng Việt kém. Màn Dịch
+ * nói rõ chuyện tiếng nói được gửi đi ngay cạnh nút micro.
  *
  * Việc này khác hẳn phần chấm phát âm, nơi tiếng nói **không** rời khỏi máy và
  * `SpeechRecognition` đã bị loại có lý do — `docs/pronunciation-scoring.md`.
@@ -27,7 +27,7 @@ export type DictationFailure =
   | 'error'
 
 /** Ngôn ngữ nghe, theo mã BCP 47. */
-export type DictationLang = 'vi-VN' | 'zh-CN'
+export type DictationLang = 'vi-VN' | 'zh-CN' | 'en-US'
 
 /** Phần của `SpeechRecognition` mà ta dùng — trình duyệt nào cũng có đủ. */
 interface Recognition {

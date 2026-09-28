@@ -1,51 +1,60 @@
 import { useEffect, useRef, useState } from 'react'
 import { AudioButton } from '../components/AudioButton'
-import { BookIcon, MicIcon, SpeakerIcon, SwapIcon } from '../components/icons/UiIcons'
+import { BookIcon, ChevronDownIcon, MicIcon, SpeakerIcon, SwapIcon } from '../components/icons/UiIcons'
 import { MascotSays } from '../components/Mascot'
 import { Button } from '../components/ui/Button'
 import { cn } from '../lib/cn'
 import { startDictation, type Dictation, type DictationFailure, type DictationLang } from '../lib/dictation'
-import { playWord, speakVietnamese, stopPlayback } from '../lib/speech'
+import { playWord, speakWithDeviceVoice, stopPlayback, type DeviceVoiceLang } from '../lib/speech'
 import {
+  LANGS,
   MAX_INPUT_LENGTH,
   TranslateError,
   flip,
+  flipTranslation,
   translate,
-  type Direction,
+  type Lang,
+  type Pair,
   type TranslateFailure,
   type Translation,
 } from '../lib/translate'
 
-/** Những gì đổi theo chiều dịch. */
-const SIDES: Record<
-  Direction,
-  { from: string; to: string; placeholder: string; submit: string; listen: DictationLang; mic: string; suggestions: string[] }
+/** Những gì đổi theo ngôn ngữ. */
+const LANG_INFO: Record<
+  Lang,
+  { name: string; lower: string; placeholder: string; listen: DictationLang; code: string; suggestions: string[] }
 > = {
-  'vi-zh': {
-    from: 'Tiếng Việt',
-    to: 'Tiếng Trung',
+  vi: {
+    name: 'Tiếng Việt',
+    lower: 'tiếng Việt',
     placeholder: 'Gõ, hoặc bấm micro để nói. Ví dụ: con mèo',
-    submit: 'Dịch sang tiếng Trung',
     listen: 'vi-VN',
-    mic: 'Nói tiếng Việt',
+    code: 'vi',
     suggestions: ['xin chào', 'cảm ơn', 'bạn tên là gì?', 'tôi muốn uống trà'],
   },
-  'zh-vi': {
-    from: 'Tiếng Trung',
-    to: 'Tiếng Việt',
+  zh: {
+    name: 'Tiếng Trung',
+    lower: 'tiếng Trung',
     placeholder: 'Gõ chữ Hán, hoặc bấm micro để nói. Ví dụ: 你好',
-    submit: 'Dịch sang tiếng Việt',
     listen: 'zh-CN',
-    mic: 'Nói tiếng Trung',
+    code: 'zh-CN',
     suggestions: ['你好', '谢谢', '你叫什么名字？', '我想喝茶'],
+  },
+  en: {
+    name: 'Tiếng Anh',
+    lower: 'tiếng Anh',
+    placeholder: 'Gõ tiếng Anh, hoặc bấm micro để nói. Ví dụ: hello',
+    listen: 'en-US',
+    code: 'en',
+    suggestions: ['hello', 'thank you', "what's your name?", 'I would like some tea'],
   },
 }
 
 /** Zibi nói gì khi không dịch được. Ô trống thì nút đã tắt, không cần lời. */
 const FAILURES: Record<Exclude<TranslateFailure, 'empty'>, string> = {
   'too-long': `Dài quá — mỗi lần mình dịch tối đa ${MAX_INPUT_LENGTH} chữ thôi nhé.`,
-  'not-chinese': 'Chiều này cần chữ Hán. Gõ chữ Hán, hoặc bấm micro rồi nói tiếng Trung nhé.',
-  'looks-chinese': 'Đây là chữ Hán — đổi sang chiều Trung → Việt để dịch nhé.',
+  'not-chinese': 'Dịch từ tiếng Trung thì cần chữ Hán. Gõ chữ Hán, hoặc bấm micro rồi nói tiếng Trung nhé.',
+  'looks-chinese': 'Đây là chữ Hán — chọn dịch từ tiếng Trung nhé.',
   offline: 'Đang mất mạng nên mình chỉ tra được từ và câu có trong bài học. Có mạng lại thì thử lần nữa nhé.',
   blocked: 'Google Dịch đang tạm từ chối vì bị hỏi dồn dập. Đợi vài phút rồi thử lại nhé.',
   failed: 'Chưa dịch được lần này. Bạn thử lại nhé.',
@@ -68,21 +77,30 @@ type State =
   | { status: 'done'; result: Translation }
   | { status: 'error'; reason: TranslateFailure }
 
-/** Dịch xong thì đọc bản dịch một lần: tiếng Trung bằng giọng thu sẵn nếu có, tiếng Việt bằng giọng của máy. */
+/**
+ * Dịch xong thì đọc bản dịch một lần: tiếng Trung bằng giọng thu sẵn nếu có,
+ * tiếng Việt và tiếng Anh bằng giọng của máy.
+ */
 function speakResult(result: Translation) {
-  if (result.direction === 'vi-zh') void playWord({ text: result.hanzi, wordId: result.wordId, clipUrl: result.clipUrl })
-  else void speakVietnamese(result.vietnamese)
+  if (result.to === 'zh') {
+    if (result.chinese) {
+      void playWord({ text: result.chinese.hanzi, wordId: result.chinese.wordId, clipUrl: result.chinese.clipUrl })
+    }
+  } else {
+    void speakWithDeviceVoice(result.translated, result.to)
+  }
 }
 
 /**
- * Màn Dịch: hai chiều Việt ⇄ Trung, gõ hoặc nói, rồi Zibi đọc bản dịch lên.
+ * Màn Dịch: qua lại giữa tiếng Việt, tiếng Trung và tiếng Anh, gõ hoặc nói, rồi
+ * Zibi đọc bản dịch lên.
  *
  * Tra khoá học trước, không có mới hỏi Google Dịch — xem `src/lib/translate.ts`
  * và `docs/translate.md`. Nói thì dùng nhận dạng giọng nói của trình duyệt —
  * `src/lib/dictation.ts`.
  */
 export function Translate() {
-  const [direction, setDirection] = useState<Direction>('vi-zh')
+  const [pair, setPair] = useState<Pair>({ from: 'vi', to: 'zh' })
   const [text, setText] = useState('')
   const [state, setState] = useState<State>({ status: 'idle' })
   const [listening, setListening] = useState(false)
@@ -101,15 +119,16 @@ export function Translate() {
     [],
   )
 
-  const side = SIDES[direction]
+  const source = LANG_INFO[pair.from]
+  const target = LANG_INFO[pair.to]
   const loading = state.status === 'loading'
 
-  async function run(query: string, dir: Direction = direction) {
+  async function run(query: string, next: Pair = pair) {
     const ticket = ++latest.current
     setHearing(null)
     setState({ status: 'loading' })
     try {
-      const result = await translate(query, { direction: dir })
+      const result = await translate(query, { pair: next })
       if (ticket !== latest.current) return
       setState({ status: 'done', result })
       speakResult(result)
@@ -124,29 +143,49 @@ export function Translate() {
     if (text.trim() && !loading && !listening) void run(text)
   }
 
-  /** Đổi chiều. Vừa dịch xong thì lật luôn cặp câu, khỏi gọi mạng lần nữa. */
-  function swap() {
+  /** Dừng mọi thứ đang dở trước khi đổi ngôn ngữ. */
+  function interrupt() {
     dictation.current?.cancel()
     setListening(false)
     stopPlayback()
     latest.current += 1
     setHearing(null)
+  }
 
-    const next = flip(direction)
-    setDirection(next)
+  /** Đảo hai bên. Vừa dịch xong thì lật luôn cặp câu, khỏi gọi mạng lần nữa. */
+  function swap() {
+    interrupt()
+    setPair(flip(pair))
     if (state.status === 'done') {
-      const { result } = state
-      setText(next === 'zh-vi' ? result.hanzi : result.vietnamese)
-      setState({ status: 'done', result: { ...result, direction: next, alternatives: undefined } })
+      setText(state.result.translated)
+      setState({ status: 'done', result: flipTranslation(state.result) })
     } else {
       setState({ status: 'idle' })
     }
   }
 
-  /** Gõ nhầm chữ Hán ở chiều Việt → Trung: đổi chiều rồi dịch luôn câu đó. */
-  function swapAndTranslate() {
-    const next = flip(direction)
-    setDirection(next)
+  /** Chọn một ngôn ngữ. Trùng với bên kia thì đổi chỗ hai bên, như các app dịch vẫn làm. */
+  function choose(side: keyof Pair, lang: Lang) {
+    if (lang === pair[side]) return
+    const other: keyof Pair = side === 'from' ? 'to' : 'from'
+    if (lang === pair[other]) {
+      swap()
+      return
+    }
+
+    interrupt()
+    const next = { ...pair, [side]: lang }
+    setPair(next)
+    // Đổi ngôn ngữ đích mà đang có bản dịch thì dịch lại luôn câu đó sang ngôn
+    // ngữ mới. Đổi ngôn ngữ nguồn thì câu đang có không còn đúng tiếng nữa.
+    if (side === 'to' && state.status === 'done' && text.trim()) void run(text, next)
+    else setState({ status: 'idle' })
+  }
+
+  /** Gõ chữ Hán mà đang dịch từ thứ tiếng khác: chuyển sang dịch từ tiếng Trung rồi dịch luôn. */
+  function translateFromChinese() {
+    const next: Pair = { from: 'zh', to: pair.to === 'zh' ? pair.from : pair.to }
+    setPair(next)
     void run(text, next)
   }
 
@@ -163,15 +202,15 @@ export function Translate() {
     setState({ status: 'idle' })
     setListening(true)
 
-    const dir = direction
+    const current = pair
     dictation.current = startDictation({
-      lang: SIDES[dir].listen,
+      lang: LANG_INFO[current.from].listen,
       onText: setText,
       onEnd: ({ text: heard, failure }) => {
         setListening(false)
         if (heard) {
           setText(heard)
-          void run(heard, dir)
+          void run(heard, current)
         } else if (failure) {
           setHearing(failure)
         }
@@ -184,12 +223,12 @@ export function Translate() {
       <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Dịch</h1>
 
       <MascotSays mood="chao">
-        Gõ hoặc bấm micro để nói — mình dịch qua lại tiếng Việt và tiếng Trung, rồi đọc cho bạn nghe.
+        Gõ hoặc bấm micro để nói — mình dịch qua lại tiếng Việt, tiếng Trung và tiếng Anh, rồi đọc cho bạn nghe.
       </MascotSays>
 
       <form onSubmit={submit} className="surface space-y-3 p-4">
         <div className="flex items-center gap-2">
-          <span className="flex-1 text-center font-semibold text-slate-900 dark:text-slate-100">{side.from}</span>
+          <LangSelect label="Dịch từ" value={pair.from} onChange={(lang) => choose('from', lang)} />
           <button
             type="button"
             onClick={swap}
@@ -199,21 +238,21 @@ export function Translate() {
           >
             <SwapIcon size={20} />
           </button>
-          <span className="flex-1 text-center font-semibold text-slate-900 dark:text-slate-100">{side.to}</span>
+          <LangSelect label="Dịch sang" value={pair.to} onChange={(lang) => choose('to', lang)} />
         </div>
 
         <label htmlFor="translate-input" className="sr-only">
-          {side.from}
+          {source.name}
         </label>
         <div className="relative">
           <textarea
             id="translate-input"
-            lang={direction === 'zh-vi' ? 'zh-CN' : 'vi'}
+            lang={source.code}
             value={text}
             rows={2}
             maxLength={MAX_INPUT_LENGTH}
             readOnly={listening}
-            placeholder={listening ? 'Đang nghe…' : side.placeholder}
+            placeholder={listening ? 'Đang nghe…' : source.placeholder}
             onChange={(event) => setText(event.target.value)}
             onKeyDown={(event) => {
               // Enter là dịch; Shift + Enter mới xuống dòng.
@@ -224,16 +263,16 @@ export function Translate() {
             }}
             className={cn(
               'block w-full resize-none rounded-2xl border border-slate-200 py-3 pr-16 pl-4 text-base dark:border-slate-700 dark:bg-slate-800',
-              direction === 'zh-vi' && 'font-hanzi',
+              pair.from === 'zh' && 'font-hanzi',
             )}
           />
           <button
             type="button"
             onClick={toggleListening}
             disabled={loading}
-            aria-label={listening ? 'Dừng nghe' : side.mic}
+            aria-label={listening ? 'Dừng nghe' : `Nói ${source.lower}`}
             aria-pressed={listening}
-            title={listening ? 'Dừng nghe' : side.mic}
+            title={listening ? 'Dừng nghe' : `Nói ${source.lower}`}
             className={cn(
               'absolute right-2 bottom-2 flex h-11 w-11 items-center justify-center rounded-full transition active:scale-90 disabled:opacity-40',
               listening
@@ -246,15 +285,15 @@ export function Translate() {
         </div>
 
         <Button type="submit" size="lg" fullWidth disabled={!text.trim() || loading || listening}>
-          {listening ? 'Đang nghe…' : loading ? 'Đang dịch…' : side.submit}
+          {listening ? 'Đang nghe…' : loading ? 'Đang dịch…' : `Dịch sang ${target.lower}`}
         </Button>
 
         <div className="flex flex-wrap gap-2" aria-label="Gợi ý">
-          {side.suggestions.map((suggestion) => (
+          {source.suggestions.map((suggestion) => (
             <button
               key={suggestion}
               type="button"
-              lang={direction === 'zh-vi' ? 'zh-CN' : 'vi'}
+              lang={source.code}
               disabled={loading || listening}
               onClick={() => {
                 setText(suggestion)
@@ -282,8 +321,8 @@ export function Translate() {
             </MascotSays>
             {state.reason === 'looks-chinese' && (
               <div className="flex justify-center">
-                <Button variant="secondary" onClick={swapAndTranslate}>
-                  <SwapIcon size={18} /> Đổi chiều và dịch
+                <Button variant="secondary" onClick={translateFromChinese}>
+                  <SwapIcon size={18} /> Dịch từ tiếng Trung
                 </Button>
               </div>
             )}
@@ -300,6 +339,27 @@ export function Translate() {
   )
 }
 
+/** Ô chọn ngôn ngữ — ô chọn thật của trình duyệt, nên trên điện thoại hiện đúng bảng chọn của máy. */
+function LangSelect({ label, value, onChange }: { label: string; value: Lang; onChange: (lang: Lang) => void }) {
+  return (
+    <span className="relative min-w-0 flex-1">
+      <select
+        aria-label={label}
+        value={value}
+        onChange={(event) => onChange(event.target.value as Lang)}
+        className="w-full appearance-none rounded-full bg-transparent py-2 pr-8 pl-3 text-center font-semibold text-slate-900 ring-1 ring-slate-200 transition hover:bg-slate-50 dark:text-slate-100 dark:ring-slate-700 dark:hover:bg-slate-800"
+      >
+        {LANGS.map((lang) => (
+          <option key={lang} value={lang}>
+            {LANG_INFO[lang].name}
+          </option>
+        ))}
+      </select>
+      <ChevronDownIcon size={16} className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-slate-400" />
+    </span>
+  )
+}
+
 /** Dòng nói rõ bản dịch lấy từ đâu. */
 function SourceNote({ result }: { result: Translation }) {
   return (
@@ -308,7 +368,7 @@ function SourceNote({ result }: { result: Translation }) {
         <>
           <BookIcon size={16} className="mr-1 inline-block align-[-3px]" />
           Có trong bài học
-          {result.direction === 'vi-zh' && `: “${result.vietnamese}”`}
+          {result.from === 'vi' && result.courseMeaning && `: “${result.courseMeaning}”`}
         </>
       ) : (
         'Dịch bởi Google Dịch'
@@ -318,12 +378,13 @@ function SourceNote({ result }: { result: Translation }) {
 }
 
 function TranslationCard({ result }: { result: Translation }) {
-  return result.direction === 'vi-zh' ? <ChineseCard result={result} /> : <VietnameseCard result={result} />
+  return result.to === 'zh' ? <ChineseCard result={result} /> : <TextCard result={result} lang={result.to} />
 }
 
-/** Việt → Trung: chữ Hán to, pinyin, nút nghe lại. */
+/** Dịch sang tiếng Trung: chữ Hán to, pinyin, nút nghe lại. */
 function ChineseCard({ result }: { result: Translation }) {
-  const long = result.hanzi.length > 8
+  const chinese = result.chinese ?? { hanzi: result.translated, pinyin: null }
+  const long = chinese.hanzi.length > 8
 
   return (
     <section aria-label="Bản dịch" className="surface p-5">
@@ -336,11 +397,11 @@ function ChineseCard({ result }: { result: Translation }) {
               long ? 'text-3xl' : 'text-5xl',
             )}
           >
-            {result.hanzi}
+            {chinese.hanzi}
           </p>
-          {result.pinyin && <p className="mt-2 text-lg text-brand-600 dark:text-brand-300">{result.pinyin}</p>}
+          {chinese.pinyin && <p className="mt-2 text-lg text-brand-600 dark:text-brand-300">{chinese.pinyin}</p>}
         </div>
-        <AudioButton text={result.hanzi} wordId={result.wordId} clipUrl={result.clipUrl} label={result.hanzi} size="lg" />
+        <AudioButton text={chinese.hanzi} wordId={chinese.wordId} clipUrl={chinese.clipUrl} label={chinese.hanzi} size="lg" />
       </div>
 
       <SourceNote result={result} />
@@ -349,18 +410,26 @@ function ChineseCard({ result }: { result: Translation }) {
         <div className="mt-4 border-t border-slate-100 pt-3 dark:border-slate-800">
           <p className="text-sm font-medium text-slate-600 dark:text-slate-300">Cũng mang nghĩa này trong bài học:</p>
           <ul className="mt-2 space-y-2">
-            {result.alternatives.map((entry) => (
-              <li key={entry.hanzi} className="flex items-center gap-3">
-                <span lang="zh-CN" className="font-hanzi text-2xl font-semibold text-slate-900 dark:text-slate-100">
-                  {entry.hanzi}
-                </span>
-                <span className="min-w-0 flex-1 text-sm">
-                  <span className="text-brand-600 dark:text-brand-300">{entry.pinyin}</span>
-                  <span className="text-slate-500 dark:text-slate-400"> · {entry.vietnamese}</span>
-                </span>
-                <AudioButton text={entry.hanzi} wordId={entry.wordId} clipUrl={entry.clipUrl} label={entry.hanzi} size="sm" />
-              </li>
-            ))}
+            {result.alternatives.map((entry) =>
+              entry.chinese ? (
+                <li key={entry.chinese.hanzi} className="flex items-center gap-3">
+                  <span lang="zh-CN" className="font-hanzi text-2xl font-semibold text-slate-900 dark:text-slate-100">
+                    {entry.chinese.hanzi}
+                  </span>
+                  <span className="min-w-0 flex-1 text-sm">
+                    <span className="text-brand-600 dark:text-brand-300">{entry.chinese.pinyin}</span>
+                    <span className="text-slate-500 dark:text-slate-400"> · {entry.courseMeaning}</span>
+                  </span>
+                  <AudioButton
+                    text={entry.chinese.hanzi}
+                    wordId={entry.chinese.wordId}
+                    clipUrl={entry.chinese.clipUrl}
+                    label={entry.chinese.hanzi}
+                    size="sm"
+                  />
+                </li>
+              ) : null,
+            )}
           </ul>
         </div>
       )}
@@ -369,45 +438,55 @@ function ChineseCard({ result }: { result: Translation }) {
 }
 
 /**
- * Trung → Việt: nghĩa tiếng Việt to, bên dưới là câu tiếng Trung kèm pinyin —
- * người học vẫn thấy và nghe được phía tiếng Trung, thứ họ đang học.
+ * Dịch sang tiếng Việt hay tiếng Anh: bản dịch to. Câu gốc là tiếng Trung thì
+ * bên dưới hiện chữ Hán kèm pinyin — người học vẫn thấy và nghe được phía tiếng
+ * Trung, thứ họ đang học.
  */
-function VietnameseCard({ result }: { result: Translation }) {
+function TextCard({ result, lang }: { result: Translation; lang: DeviceVoiceLang }) {
   return (
     <section aria-label="Bản dịch" className="surface p-5">
       <div className="flex items-start gap-4">
-        <p className="min-w-0 flex-1 text-2xl font-bold break-words text-slate-900 dark:text-slate-100">
-          {result.vietnamese}
+        <p lang={LANG_INFO[lang].code} className="min-w-0 flex-1 text-2xl font-bold break-words text-slate-900 dark:text-slate-100">
+          {result.translated}
         </p>
-        <VietnameseSpeakButton text={result.vietnamese} />
+        <DeviceSpeakButton text={result.translated} lang={lang} />
       </div>
 
-      <div className="mt-4 flex items-center gap-3 rounded-2xl bg-slate-50 p-3 dark:bg-slate-800/60">
-        <div className="min-w-0 flex-1">
-          <p lang="zh-CN" className="font-hanzi text-2xl font-semibold break-words text-slate-900 dark:text-slate-100">
-            {result.hanzi}
-          </p>
-          {result.pinyin && <p className="text-brand-600 dark:text-brand-300">{result.pinyin}</p>}
+      {result.chinese && (
+        <div className="mt-4 flex items-center gap-3 rounded-2xl bg-slate-50 p-3 dark:bg-slate-800/60">
+          <div className="min-w-0 flex-1">
+            <p lang="zh-CN" className="font-hanzi text-2xl font-semibold break-words text-slate-900 dark:text-slate-100">
+              {result.chinese.hanzi}
+            </p>
+            {result.chinese.pinyin && <p className="text-brand-600 dark:text-brand-300">{result.chinese.pinyin}</p>}
+          </div>
+          <AudioButton
+            text={result.chinese.hanzi}
+            wordId={result.chinese.wordId}
+            clipUrl={result.chinese.clipUrl}
+            label={result.chinese.hanzi}
+            size="md"
+          />
         </div>
-        <AudioButton text={result.hanzi} wordId={result.wordId} clipUrl={result.clipUrl} label={result.hanzi} size="md" />
-      </div>
+      )}
 
       <SourceNote result={result} />
     </section>
   )
 }
 
-/** Nút đọc câu tiếng Việt bằng giọng của máy. */
-function VietnameseSpeakButton({ text }: { text: string }) {
+/** Nút đọc bản dịch tiếng Việt hay tiếng Anh bằng giọng của máy. */
+function DeviceSpeakButton({ text, lang }: { text: string; lang: DeviceVoiceLang }) {
   const [busy, setBusy] = useState(false)
   const [hint, setHint] = useState<string | null>(null)
+  const name = LANG_INFO[lang].lower
 
   async function speak() {
     setHint(null)
     setBusy(true)
-    const result = await speakVietnamese(text)
+    const result = await speakWithDeviceVoice(text, lang)
     setBusy(false)
-    if (result === 'no-voice') setHint('Máy chưa có giọng đọc tiếng Việt nên mình chưa đọc được câu này.')
+    if (result === 'no-voice') setHint(`Máy chưa có giọng đọc ${name} nên mình chưa đọc được câu này.`)
     else if (result === 'unsupported') setHint('Trình duyệt này chưa đọc được thành tiếng.')
     else if (result === 'error') setHint('Không đọc được lần này. Thử bấm lại nhé.')
   }
@@ -417,7 +496,7 @@ function VietnameseSpeakButton({ text }: { text: string }) {
       <button
         type="button"
         onClick={speak}
-        aria-label="Nghe câu tiếng Việt"
+        aria-label={`Nghe câu ${name}`}
         aria-busy={busy}
         className={cn(
           'inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-600 ring-1 ring-brand-100 transition hover:bg-brand-100 active:scale-95 dark:bg-brand-500/15 dark:text-brand-300 dark:ring-brand-500/25 dark:hover:bg-brand-500/25',

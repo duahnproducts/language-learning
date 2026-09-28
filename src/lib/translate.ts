@@ -1,11 +1,11 @@
 /**
- * Dịch hai chiều Việt ⇄ Trung — xem `docs/translate.md`.
+ * Dịch qua lại giữa tiếng Việt, tiếng Trung và tiếng Anh — xem `docs/translate.md`.
  *
  * Hai nguồn, thử lần lượt:
  *
- * 1. **Khoá học.** 60 từ và 180 câu mẫu, tra theo nghĩa tiếng Việt (chiều Việt →
- *    Trung) hoặc theo chữ Hán (chiều Trung → Việt). Tra ngay trên máy, không cần
- *    mạng, pinyin do người soạn, audio thu sẵn bằng Piper.
+ * 1. **Khoá học.** 60 từ và 180 câu mẫu, chỉ cho cặp Việt – Trung: tra theo nghĩa
+ *    tiếng Việt (Việt → Trung) hoặc theo chữ Hán (Trung → Việt). Tra ngay trên
+ *    máy, không cần mạng, pinyin do người soạn, audio thu sẵn bằng Piper.
  * 2. **Google Dịch**, qua đúng endpoint mà tiện ích từ điển của Chrome dùng. Trả
  *    cả bản dịch lẫn pinyin của phía tiếng Trung, và mở CORS nên gọi thẳng từ
  *    trình duyệt được — app không có máy chủ nào để đứng giữa.
@@ -17,34 +17,48 @@
  */
 
 import { WORDS } from '../data/hsk1'
-import type { ExampleSentence, Word } from '../types'
 import { audioUrlForSentence } from './audioFiles'
 
-/** Chiều dịch. */
-export type Direction = 'vi-zh' | 'zh-vi'
+/** Ba ngôn ngữ của màn Dịch. */
+export type Lang = 'vi' | 'zh' | 'en'
+
+export const LANGS: readonly Lang[] = ['vi', 'zh', 'en']
+
+/** Một chiều dịch. `from` và `to` luôn khác nhau. */
+export interface Pair {
+  from: Lang
+  to: Lang
+}
 
 export type TranslationSource = 'course' | 'google'
 
-/**
- * Một cặp câu Việt – Trung. Chiều nào cũng có đủ hai phía, để giao diện hiện
- * chữ Hán kèm pinyin và phát âm tiếng Trung bất kể người học dịch theo chiều nào.
- */
-export interface Translation {
-  direction: Direction
-  source: TranslationSource
-  /** Phía tiếng Trung: bản dịch (Việt → Trung) hoặc chữ người học đưa vào (Trung → Việt). */
+/** Phía tiếng Trung của một cặp câu: chữ Hán, pinyin, và file thu sẵn nếu có. */
+export interface ChineseSide {
   hanzi: string
-  /** Pinyin của phía tiếng Trung; null khi nguồn không trả. */
+  /** Pinyin có dấu thanh; null khi nguồn không trả. */
   pinyin: string | null
-  /**
-   * Phía tiếng Việt: chữ người học đưa vào hoặc bản dịch. Tìm thấy trong khoá
-   * học thì là nghĩa đúng như khoá học viết.
-   */
-  vietnamese: string
   /** Id của từ, để phát file thu sẵn. */
   wordId?: string
   /** File thu sẵn cho đúng câu này. */
   clipUrl?: string | null
+}
+
+export interface Translation {
+  from: Lang
+  to: Lang
+  source: TranslationSource
+  /** Câu gốc, đúng như người học đưa vào. */
+  original: string
+  /** Bản dịch. */
+  translated: string
+  /**
+   * Phía tiếng Trung của cặp — là câu gốc hay bản dịch tuỳ chiều — để giao diện
+   * luôn hiện chữ Hán kèm pinyin và phát được tiếng Trung. Null khi cặp không có
+   * tiếng Trung (Việt ⇄ Anh).
+   */
+  chinese: ChineseSide | null
+  /** Nghĩa tiếng Việt đúng như khoá học viết — chỉ có khi tìm thấy trong khoá học. */
+  courseMeaning?: string
   /**
    * Từ khác trong khoá học cũng mang đúng nghĩa đã gõ — "năm" là 五 mà cũng là
    * 年. Tiếng Việt nhập nhằng thì cho người học thấy hết, đừng chọn thầm một.
@@ -56,9 +70,9 @@ export interface Translation {
 export type TranslateFailure =
   | 'empty'
   | 'too-long'
-  /** Chiều Trung → Việt mà không có chữ Hán nào — gõ pinyin thì Google đọc không ra. */
+  /** Dịch từ tiếng Trung mà không có chữ Hán nào — gõ pinyin thì Google đọc không ra. */
   | 'not-chinese'
-  /** Chiều Việt → Trung mà lại gõ chữ Hán — nhiều khả năng quên đổi chiều. */
+  /** Dịch từ tiếng Việt hay tiếng Anh mà lại gõ chữ Hán — nhiều khả năng quên đổi ngôn ngữ. */
   | 'looks-chinese'
   | 'offline'
   | 'blocked'
@@ -82,14 +96,29 @@ const TIMEOUT_MS = 8000
 
 export const GOOGLE_ENDPOINT = 'https://clients5.google.com/translate_a/single'
 
+/** Mã ngôn ngữ của Google. Tiếng Trung là giản thể. */
+const GOOGLE_CODE: Record<Lang, string> = { vi: 'vi', zh: 'zh-CN', en: 'en' }
+
 /** Có chữ Hán nào không. */
 export function hasHanzi(text: string): boolean {
   return /\p{Script=Han}/u.test(text)
 }
 
 /** Chiều ngược lại. */
-export function flip(direction: Direction): Direction {
-  return direction === 'vi-zh' ? 'zh-vi' : 'vi-zh'
+export function flip(pair: Pair): Pair {
+  return { from: pair.to, to: pair.from }
+}
+
+/** Lật một bản dịch: bản dịch thành câu gốc và ngược lại — khỏi gọi mạng lần nữa. */
+export function flipTranslation(translation: Translation): Translation {
+  return {
+    ...translation,
+    from: translation.to,
+    to: translation.from,
+    original: translation.translated,
+    translated: translation.original,
+    alternatives: undefined,
+  }
 }
 
 /** Năm dấu thanh tiếng Việt, ở dạng ký tự tổ hợp: huyền, sắc, ngã, hỏi, nặng. */
@@ -132,87 +161,95 @@ function senses(meaning: string): string[] {
     .filter(Boolean)
 }
 
-function fromWord(word: Word, direction: Direction): Translation {
-  return {
-    direction,
-    source: 'course',
-    hanzi: word.hanzi,
-    pinyin: word.pinyin,
-    vietnamese: word.meaning,
-    wordId: word.id,
-  }
+/** Một mục của khoá học: một từ hay một câu mẫu. */
+interface CourseItem extends ChineseSide {
+  pinyin: string
+  meaning: string
 }
 
-function fromSentence(sentence: ExampleSentence, direction: Direction): Translation {
-  return {
-    direction,
-    source: 'course',
-    hanzi: sentence.hanzi,
-    pinyin: sentence.pinyin,
-    vietnamese: sentence.meaning,
-    clipUrl: audioUrlForSentence(sentence),
-  }
-}
-
-type CourseIndex = Map<string, Translation[]>
-const courseIndexes: Partial<Record<Direction, CourseIndex>> = {}
+type CourseIndex = Map<string, CourseItem[]>
+const courseIndexes: Partial<Record<'vi' | 'zh', CourseIndex>> = {}
 
 /**
- * Bảng tra khoá học của một chiều, dựng một lần khi cần tới: chiều Việt →
- * Trung tra theo nghĩa, chiều Trung → Việt tra theo chữ Hán. Từ trước, câu sau:
- * gõ đúng một từ thì ra đúng từ đó.
+ * Bảng tra khoá học, dựng một lần khi cần tới: theo nghĩa tiếng Việt, hoặc theo
+ * chữ Hán. Từ trước, câu sau: gõ đúng một từ thì ra đúng từ đó.
  */
-function getCourseIndex(direction: Direction): CourseIndex {
-  const cached = courseIndexes[direction]
+function getCourseIndex(by: 'vi' | 'zh'): CourseIndex {
+  const cached = courseIndexes[by]
   if (cached) return cached
 
   const index: CourseIndex = new Map()
-  const add = (key: string, entry: Translation) => {
+  const add = (key: string, item: CourseItem) => {
     if (!key) return
-    const entries = index.get(key) ?? []
-    if (!entries.some((existing) => existing.hanzi === entry.hanzi)) index.set(key, [...entries, entry])
+    const items = index.get(key) ?? []
+    if (!items.some((existing) => existing.hanzi === item.hanzi)) index.set(key, [...items, item])
   }
 
   for (const word of WORDS) {
-    const entry = fromWord(word, direction)
-    if (direction === 'zh-vi') {
-      add(hanziKey(word.hanzi), entry)
+    const item: CourseItem = { hanzi: word.hanzi, pinyin: word.pinyin, meaning: word.meaning, wordId: word.id }
+    if (by === 'zh') {
+      add(hanziKey(word.hanzi), item)
     } else {
-      add(matchKey(word.meaning), entry)
-      for (const sense of senses(word.meaning)) add(matchKey(sense), entry)
+      add(matchKey(word.meaning), item)
+      for (const sense of senses(word.meaning)) add(matchKey(sense), item)
     }
   }
   for (const word of WORDS) {
     for (const sentence of word.examples) {
-      const entry = fromSentence(sentence, direction)
-      add(direction === 'zh-vi' ? hanziKey(sentence.hanzi) : matchKey(sentence.meaning), entry)
+      const item: CourseItem = {
+        hanzi: sentence.hanzi,
+        pinyin: sentence.pinyin,
+        meaning: sentence.meaning,
+        clipUrl: audioUrlForSentence(sentence),
+      }
+      add(by === 'zh' ? hanziKey(sentence.hanzi) : matchKey(sentence.meaning), item)
     }
   }
 
-  courseIndexes[direction] = index
+  courseIndexes[by] = index
   return index
 }
 
-/**
- * Tìm trong khoá học; null nếu khoá học không có đúng chữ này. Nhiều mục cùng
- * khớp thì mục đứng trước trong khoá học là bản chính, còn lại ở `alternatives`.
- */
-export function lookupCourse(text: string, direction: Direction = 'vi-zh'): Translation | null {
-  const key = direction === 'zh-vi' ? hanziKey(text) : matchKey(text)
-  const [first, ...rest] = getCourseIndex(direction).get(key) ?? []
-  if (!first) return null
-  return rest.length > 0 ? { ...first, alternatives: rest } : first
+/** Khoá học chỉ có tiếng Việt và tiếng Trung. */
+function isCoursePair(pair: Pair): boolean {
+  return (pair.from === 'vi' && pair.to === 'zh') || (pair.from === 'zh' && pair.to === 'vi')
 }
 
-let recordedIndex: Map<string, Pick<Translation, 'wordId' | 'clipUrl'>> | null = null
+/**
+ * Tìm trong khoá học; null nếu khoá học không có đúng chữ này, hoặc cặp ngôn ngữ
+ * không phải Việt – Trung. Nhiều mục cùng khớp thì mục đứng trước trong khoá học
+ * là bản chính, còn lại ở `alternatives`.
+ */
+export function lookupCourse(text: string, pair: Pair = { from: 'vi', to: 'zh' }): Translation | null {
+  if (!isCoursePair(pair)) return null
+
+  const key = pair.from === 'zh' ? hanziKey(text) : matchKey(text)
+  const [first, ...rest] = getCourseIndex(pair.from === 'zh' ? 'zh' : 'vi').get(key) ?? []
+  if (!first) return null
+
+  const toTranslation = ({ meaning, ...chinese }: CourseItem): Translation => ({
+    from: pair.from,
+    to: pair.to,
+    source: 'course',
+    original: text,
+    translated: pair.to === 'zh' ? chinese.hanzi : meaning,
+    chinese,
+    courseMeaning: meaning,
+  })
+
+  const main = toTranslation(first)
+  return rest.length > 0 ? { ...main, alternatives: rest.map(toTranslation) } : main
+}
+
+let recordedIndex: Map<string, Pick<ChineseSide, 'wordId' | 'clipUrl'>> | null = null
 
 /**
  * File thu sẵn cho một chuỗi chữ Hán, nếu khoá học có đúng chuỗi đó.
  *
- * Google dịch "xin chào" ra 你好 — đúng chữ đã có file Piper, nghe hay hơn
- * giọng đọc của máy nhiều.
+ * Google dịch "xin chào" hay "hello" ra 你好 — đúng chữ đã có file Piper, nghe
+ * hay hơn giọng đọc của máy nhiều.
  */
-function recordedAudioFor(hanzi: string): Pick<Translation, 'wordId' | 'clipUrl'> {
+function recordedAudioFor(hanzi: string): Pick<ChineseSide, 'wordId' | 'clipUrl'> {
   if (!recordedIndex) {
     recordedIndex = new Map()
     for (const word of WORDS) {
@@ -268,23 +305,12 @@ export function parseGoogleResponse(data: unknown): GoogleAnswer | null {
   }
 }
 
-/** Mã ngôn ngữ của Google cho từng chiều: [nguồn, đích]. */
-const GOOGLE_LANGS: Record<Direction, [string, string]> = {
-  'vi-zh': ['vi', 'zh-CN'],
-  'zh-vi': ['zh-CN', 'vi'],
-}
-
 /** Gọi Google Dịch. Chỗ duy nhất trong app chạm tới dịch vụ này. */
-export async function translateWithGoogle(
-  text: string,
-  direction: Direction,
-  fetchImpl: typeof fetch,
-): Promise<GoogleAnswer> {
-  const [from, to] = GOOGLE_LANGS[direction]
+export async function translateWithGoogle(text: string, pair: Pair, fetchImpl: typeof fetch): Promise<GoogleAnswer> {
   const params = new URLSearchParams([
     ['client', 'dict-chrome-ex'],
-    ['sl', from],
-    ['tl', to],
+    ['sl', GOOGLE_CODE[pair.from]],
+    ['tl', GOOGLE_CODE[pair.to]],
     ['dt', 't'],
     ['dt', 'rm'],
     ['q', text],
@@ -337,43 +363,42 @@ export function clearTranslationCache(): void {
  */
 export async function translate(
   input: string,
-  options: { direction?: Direction; fetch?: typeof fetch } = {},
+  options: { pair?: Pair; fetch?: typeof fetch } = {},
 ): Promise<Translation> {
-  const direction = options.direction ?? 'vi-zh'
+  const pair = options.pair ?? { from: 'vi', to: 'zh' }
+  if (pair.from === pair.to) throw new TranslateError('failed')
+
   const text = input.trim().replace(/\s+/g, ' ')
   if (!text) throw new TranslateError('empty')
   if (text.length > MAX_INPUT_LENGTH) throw new TranslateError('too-long')
-  if (direction === 'zh-vi' && !hasHanzi(text)) throw new TranslateError('not-chinese')
-  if (direction === 'vi-zh' && hasHanzi(text)) throw new TranslateError('looks-chinese')
+  if (pair.from === 'zh' && !hasHanzi(text)) throw new TranslateError('not-chinese')
+  if (pair.from !== 'zh' && hasHanzi(text)) throw new TranslateError('looks-chinese')
 
-  const course = lookupCourse(text, direction)
+  const course = lookupCourse(text, pair)
   if (course) return course
 
-  const key = `${direction}:${matchKey(text)}`
+  const key = `${pair.from}-${pair.to}:${matchKey(text)}`
   const cached = cache.get(key)
   if (cached) return cached
 
   if (isOffline()) throw new TranslateError('offline')
 
-  const answer = await translateWithGoogle(text, direction, options.fetch ?? globalThis.fetch)
-  const translation: Translation =
-    direction === 'vi-zh'
-      ? {
-          direction,
-          source: 'google',
-          hanzi: answer.text,
-          pinyin: answer.targetRomanization,
-          vietnamese: text,
-          ...recordedAudioFor(answer.text),
-        }
-      : {
-          direction,
-          source: 'google',
-          hanzi: text,
-          pinyin: answer.sourceRomanization,
-          vietnamese: answer.text,
-          ...recordedAudioFor(text),
-        }
+  const answer = await translateWithGoogle(text, pair, options.fetch ?? globalThis.fetch)
+  const chinese: ChineseSide | null =
+    pair.to === 'zh'
+      ? { hanzi: answer.text, pinyin: answer.targetRomanization, ...recordedAudioFor(answer.text) }
+      : pair.from === 'zh'
+        ? { hanzi: text, pinyin: answer.sourceRomanization, ...recordedAudioFor(text) }
+        : null
+
+  const translation: Translation = {
+    from: pair.from,
+    to: pair.to,
+    source: 'google',
+    original: text,
+    translated: answer.text,
+    chinese,
+  }
 
   if (cache.size >= CACHE_LIMIT) cache.delete(cache.keys().next().value!)
   cache.set(key, translation)

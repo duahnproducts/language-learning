@@ -82,10 +82,11 @@ chạy thẳng file TypeScript.
   được lưu. Vào từ nút **🎤 Luyện nói** ở màn Từ mới hoặc màn Kết quả. Ngưỡng
   mới chỉnh trên giọng máy, chưa hiệu chuẩn trên giọng người. Xem
   [docs/pronunciation-mvp.md](docs/pronunciation-mvp.md).
-- **Dịch**: mục giữa thanh điều hướng, hai chiều Việt ⇄ Trung. Gõ hoặc bấm micro
-  để nói; ra bản dịch kèm chữ Hán và pinyin, rồi đọc bản dịch lên — bấm loa để
-  nghe lại. Từ và câu có trong bài học được tra ngay trên máy, kèm giọng đọc thu
-  sẵn; còn lại hỏi Google Dịch. Xem [docs/translate.md](docs/translate.md).
+- **Dịch**: mục giữa thanh điều hướng, qua lại giữa tiếng Việt, tiếng Trung và
+  tiếng Anh. Gõ hoặc bấm micro để nói; ra bản dịch, cặp nào có tiếng Trung thì
+  kèm chữ Hán và pinyin, rồi đọc bản dịch lên — bấm loa để nghe lại. Từ và câu có
+  trong bài học được tra ngay trên máy, kèm giọng đọc thu sẵn; còn lại hỏi Google
+  Dịch. Xem [docs/translate.md](docs/translate.md).
 - **Cài được lên điện thoại**: thêm vào màn hình chính iPhone hoặc Android,
   chạy toàn màn hình và **dùng được khi mất mạng**, kể cả phần nghe phát âm.
   Xem [docs/pwa.md](docs/pwa.md).
@@ -210,7 +211,7 @@ src/
 │   ├── nav.ts            Mục nào của thanh điều hướng đang được chọn
 │   ├── wordMap.ts        Toạ độ 60 từ trên bản đồ chòm sao / luống hoa
 │   ├── storage.ts        Đọc/ghi localStorage
-│   ├── translate.ts      Dịch Việt ⇄ Trung: tra khoá học trước, rồi Google Dịch
+│   ├── translate.ts      Dịch Việt – Trung – Anh: tra khoá học trước, rồi Google Dịch
 │   ├── dictation.ts      Nói thay cho gõ ở màn Dịch: nhận dạng giọng nói của trình duyệt
 │   ├── recorder.ts       Chấm phát âm: thu micro ra mẫu thô, tự dừng khi đọc xong
 │   ├── dsp.ts            Hạ mẫu, năng lượng từng khung, vùng có tiếng, WAV
@@ -249,7 +250,7 @@ nên chạy được trong `npm test`, không phải cài Deno chỉ để chạ
 
 ## Kiểm thử
 
-852 test, chia làm ba tầng:
+868 test, chia làm ba tầng:
 
 - **Logic** (`src/lib/*.test.ts`, `supabase/functions/speak/handler.test.ts`) — XP, level, streak, thành tích, sinh và chấm bài tập, chế độ sáng/tối, nền động, bản đồ 60 từ, khoá cache audio, đọc/ghi dữ liệu hỏng.
   Bộ chấm phát âm được kiểm bằng tín hiệu giả biết trước cao độ, và bằng bản đọc thật của máy — cả đúng lẫn cố tình sai thanh — trong `src/test/fixtures/speech`: bản sai phải bị đánh dấu **đúng ở âm tiết sai**.

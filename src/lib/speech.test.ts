@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   findChineseVoice,
-  findVietnameseVoice,
+  findDeviceVoice,
   getAudioStatus,
   playWord,
-  speakVietnamese,
+  speakWithDeviceVoice,
   subscribeAudioStatus,
 } from './speech'
 import { resetRemoteAudioCache } from './remoteAudio'
@@ -396,32 +396,39 @@ describe('audio cả câu', () => {
   })
 })
 
-describe('speakVietnamese', () => {
+describe('speakWithDeviceVoice', () => {
   it('đọc bản dịch tiếng Việt bằng giọng tiếng Việt của máy, tốc độ bình thường', async () => {
     const synth = install([voice('zh-CN'), voice('vi-VN', 'Linh')])
 
-    await expect(speakVietnamese('Xin chào')).resolves.toBe('played')
+    await expect(speakWithDeviceVoice('Xin chào', 'vi')).resolves.toBe('played')
     expect(synth.spoken[0].text).toBe('Xin chào')
     expect(synth.spoken[0].voice?.name).toBe('Linh')
     expect(synth.spoken[0].rate).toBe(1)
   })
 
-  it('nhận cả mã ngôn ngữ viết gạch dưới hay chỉ có "vi"', () => {
-    install([voice('vi_VN', 'A')])
-    expect(findVietnameseVoice()?.name).toBe('A')
-    install([voice('vi', 'B')])
-    expect(findVietnameseVoice()?.name).toBe('B')
+  it('đọc tiếng Anh bằng giọng tiếng Anh, ưu tiên giọng Mỹ', async () => {
+    const synth = install([voice('en-GB', 'Anh'), voice('en-US', 'My'), voice('vi-VN', 'Linh')])
+
+    await expect(speakWithDeviceVoice('Hello', 'en')).resolves.toBe('played')
+    expect(synth.spoken[0].voice?.name).toBe('My')
   })
 
-  it('máy không có giọng tiếng Việt thì báo no-voice, không đọc bằng giọng khác', async () => {
+  it('nhận cả mã ngôn ngữ viết gạch dưới hay chỉ có hai chữ', () => {
+    install([voice('vi_VN', 'A')])
+    expect(findDeviceVoice('vi')?.name).toBe('A')
+    install([voice('en', 'B')])
+    expect(findDeviceVoice('en')?.name).toBe('B')
+  })
+
+  it('máy không có giọng của thứ tiếng đó thì báo no-voice, không đọc bằng giọng khác', async () => {
     const synth = install([voice('zh-CN'), voice('en-US')])
 
-    await expect(speakVietnamese('Xin chào')).resolves.toBe('no-voice')
+    await expect(speakWithDeviceVoice('Xin chào', 'vi')).resolves.toBe('no-voice')
     expect(synth.spoken).toHaveLength(0)
   })
 
   it('trình duyệt không đọc được thì báo unsupported', async () => {
     vi.stubGlobal('speechSynthesis', undefined)
-    await expect(speakVietnamese('Xin chào')).resolves.toBe('unsupported')
+    await expect(speakWithDeviceVoice('Xin chào', 'vi')).resolves.toBe('unsupported')
   })
 })

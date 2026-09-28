@@ -237,32 +237,47 @@ export async function playWord(input: {
   return synth() ? 'no-chinese-voice' : 'unsupported'
 }
 
-/** Giọng tiếng Việt của máy, hoặc null nếu máy không có. */
-export function findVietnameseVoice(): SpeechSynthesisVoice | null {
-  const speech = synth()
-  if (!speech) return null
-  return (
-    speech.getVoices().find((voice) => {
-      const lang = voice.lang.toLowerCase().replace('_', '-')
-      return lang === 'vi' || lang.startsWith('vi-')
-    }) ?? null
-  )
+/** Ngôn ngữ đọc bằng giọng của máy — tiếng Việt và tiếng Anh ở màn Dịch. */
+export type DeviceVoiceLang = 'vi' | 'en'
+
+/** Thứ tự ưu tiên khi máy có nhiều giọng của cùng một thứ tiếng. */
+const PREFERRED_DEVICE_LANGS: Record<DeviceVoiceLang, string[]> = {
+  vi: ['vi-vn', 'vi'],
+  en: ['en-us', 'en-gb', 'en'],
 }
 
-/** Kết quả đọc một câu tiếng Việt. */
-export type VietnameseResult = 'played' | 'no-voice' | 'unsupported' | 'error'
+/** Giọng của máy cho một thứ tiếng, hoặc null nếu máy không có. */
+export function findDeviceVoice(lang: DeviceVoiceLang): SpeechSynthesisVoice | null {
+  const speech = synth()
+  if (!speech) return null
+
+  const langOf = (voice: SpeechSynthesisVoice) => voice.lang.toLowerCase().replace('_', '-')
+  const matching = speech.getVoices().filter((voice) => langOf(voice) === lang || langOf(voice).startsWith(`${lang}-`))
+  if (matching.length === 0) return null
+
+  const preferred = PREFERRED_DEVICE_LANGS[lang]
+  const rankOf = (voice: SpeechSynthesisVoice) => {
+    const index = preferred.indexOf(langOf(voice))
+    return index === -1 ? preferred.length : index
+  }
+  return [...matching].sort((a, b) => rankOf(a) - rankOf(b))[0]
+}
+
+/** Kết quả đọc một câu bằng giọng của máy. */
+export type DeviceVoiceResult = 'played' | 'no-voice' | 'unsupported' | 'error'
 
 /**
- * Đọc một câu tiếng Việt — bản dịch ở chiều Trung → Việt của màn Dịch.
+ * Đọc một câu tiếng Việt hay tiếng Anh — bản dịch ở màn Dịch.
  *
- * Tiếng Việt không có file thu sẵn nào, nên chỉ có giọng của máy. iPhone có sẵn
- * giọng tiếng Việt, Android thường cũng có; máy không có thì trả `no-voice` để
- * giao diện nói rõ, không im lặng.
+ * Hai thứ tiếng này không có file thu sẵn nào, nên chỉ có giọng của máy. Máy nào
+ * cũng có giọng tiếng Anh; giọng tiếng Việt thì iPhone có sẵn, Android thường
+ * có, máy tính Windows hay thiếu. Không có thì trả `no-voice` để giao diện nói
+ * rõ, không im lặng.
  */
-export async function speakVietnamese(text: string): Promise<VietnameseResult> {
+export async function speakWithDeviceVoice(text: string, lang: DeviceVoiceLang): Promise<DeviceVoiceResult> {
   stopPlayback()
   if (!synth()) return 'unsupported'
-  const voice = findVietnameseVoice()
+  const voice = findDeviceVoice(lang)
   if (!voice) return 'no-voice'
   const result = await playVoice(text, voice, 1)
   return result === 'played' ? 'played' : 'error'

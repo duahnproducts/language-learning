@@ -92,7 +92,7 @@ Các màn hình chính:
 ### Mobile Navigation
 - Home
 - Learn
-- Translate — dịch hai chiều Việt ⇄ Trung, gõ hoặc nói, rồi nghe đọc (xem `docs/translate.md`)
+- Translate — dịch qua lại tiếng Việt, tiếng Trung, tiếng Anh; gõ hoặc nói, rồi nghe đọc (xem `docs/translate.md`)
 - Progress
 - Profile
 

@@ -72,6 +72,15 @@ export function MicIcon(props: IconProps) {
   )
 }
 
+/** Mũi tên chỉ xuống — ô chọn còn lựa chọn khác. */
+export function ChevronDownIcon(props: IconProps) {
+  return (
+    <Frame {...props}>
+      <path d="M7 10l5 5 5-5" />
+    </Frame>
+  )
+}
+
 /** Hai mũi tên ngược chiều — đổi chiều dịch. */
 export function SwapIcon(props: IconProps) {
   return (

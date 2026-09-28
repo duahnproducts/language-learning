@@ -8,7 +8,7 @@ import { ONBOARDED, renderApp } from '../test/renderApp'
 /** Ghi lại mọi lần phát âm thay vì phát thật — jsdom không có loa. */
 const speech = vi.hoisted(() => ({
   chinese: [] as Array<{ text: string; wordId?: string; clipUrl?: string | null }>,
-  vietnamese: [] as string[],
+  device: [] as Array<{ text: string; lang: string }>,
 }))
 
 vi.mock('../lib/speech', async (importOriginal) => {
@@ -19,8 +19,8 @@ vi.mock('../lib/speech', async (importOriginal) => {
       speech.chinese.push(input)
       return 'played' as const
     }),
-    speakVietnamese: vi.fn(async (text: string) => {
-      speech.vietnamese.push(text)
+    speakWithDeviceVoice: vi.fn(async (text: string, lang: string) => {
+      speech.device.push({ text, lang })
       return 'played' as const
     }),
   }
@@ -47,15 +47,19 @@ vi.mock('../lib/dictation', async (importOriginal) => {
 
 const fetchMock = vi.fn()
 
-/** Google trả một bản dịch. Chiều Việt → Trung: pinyin ở ô thứ ba; chiều ngược lại: ô thứ tư. */
-function googleSays(text: string, romanization: string, direction: 'vi-zh' | 'zh-vi' = 'vi-zh') {
-  const roman = direction === 'vi-zh' ? [null, null, romanization] : [null, null, null, romanization]
-  fetchMock.mockImplementation(async () => new Response(JSON.stringify([[[text, 'câu gốc'], roman]]), { status: 200 }))
+/**
+ * Google trả một bản dịch. Dịch sang tiếng Trung thì pinyin ở ô thứ ba, dịch từ
+ * tiếng Trung thì ở ô thứ tư, không có tiếng Trung thì không có phiên âm.
+ */
+function googleSays(text: string, romanization: string | null = null, side: 'target' | 'source' = 'target') {
+  const segments: unknown[] = [[text, 'câu gốc']]
+  if (romanization) segments.push(side === 'target' ? [null, null, romanization] : [null, null, null, romanization])
+  fetchMock.mockImplementation(async () => new Response(JSON.stringify([segments]), { status: 200 }))
 }
 
 beforeEach(() => {
   speech.chinese = []
-  speech.vietnamese = []
+  speech.device = []
   dictation.calls = []
   dictation.stop.mockReset()
   dictation.cancel.mockReset()
@@ -164,7 +168,7 @@ describe('Màn Dịch — đổi chiều, Trung → Việt', () => {
   })
 
   it('gõ chữ Hán thì ra nghĩa tiếng Việt, kèm chữ Hán và pinyin, rồi đọc bản dịch tiếng Việt', async () => {
-    googleSays('Tôi muốn đến ngân hàng', 'Wǒ xiǎng qù yínháng', 'zh-vi')
+    googleSays('Tôi muốn đến ngân hàng', 'Wǒ xiǎng qù yínháng', 'source')
     const { user } = renderApp('/translate', ONBOARDED)
     await user.click(swapButton())
     await user.type(input('Tiếng Trung'), '我想去银行{Enter}')
@@ -173,7 +177,7 @@ describe('Màn Dịch — đổi chiều, Trung → Việt', () => {
     expect(result).toHaveTextContent('Tôi muốn đến ngân hàng')
     expect(result).toHaveTextContent('我想去银行')
     expect(result).toHaveTextContent('Wǒ xiǎng qù yínháng')
-    expect(speech.vietnamese).toEqual(['Tôi muốn đến ngân hàng'])
+    expect(speech.device).toEqual([{ text: 'Tôi muốn đến ngân hàng', lang: 'vi' }])
     // Phía tiếng Trung vẫn nghe được, nhưng không tự đọc — người ta vừa nói xong câu đó.
     expect(speech.chinese).toHaveLength(0)
     expect(within(result).getByRole('button', { name: 'Nghe phát âm 我想去银行' })).toBeInTheDocument()
@@ -192,12 +196,12 @@ describe('Màn Dịch — đổi chiều, Trung → Việt', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('gõ chữ Hán ở chiều Việt → Trung thì Zibi nhắc, bấm một nút là đổi chiều và dịch luôn', async () => {
+  it('gõ chữ Hán ở chiều Việt → Trung thì Zibi nhắc, bấm một nút là dịch từ tiếng Trung luôn', async () => {
     const { user } = renderApp('/translate', ONBOARDED)
     await user.type(input(), '谢谢{Enter}')
 
     expect(await screen.findByRole('status')).toHaveTextContent('Đây là chữ Hán')
-    await user.click(screen.getByRole('button', { name: 'Đổi chiều và dịch' }))
+    await user.click(screen.getByRole('button', { name: 'Dịch từ tiếng Trung' }))
 
     expect(await card()).toHaveTextContent('cảm ơn')
     expect(input('Tiếng Trung')).toHaveValue('谢谢')
@@ -257,3 +261,94 @@ describe('Màn Dịch — nói thay cho gõ', () => {
     expect(screen.queryByRole('region', { name: 'Bản dịch' })).not.toBeInTheDocument()
   })
 })
+
+describe('Màn Dịch — thêm tiếng Anh', () => {
+  const pick = async (user: ReturnType<typeof renderApp>['user'], side: 'Dịch từ' | 'Dịch sang', lang: string) =>
+    user.selectOptions(screen.getByLabelText(side), lang)
+
+  it('chọn được cả ba thứ tiếng ở hai bên', () => {
+    renderApp('/translate', ONBOARDED)
+    for (const side of ['Dịch từ', 'Dịch sang']) {
+      const options = within(screen.getByLabelText(side))
+        .getAllByRole('option')
+        .map((option) => option.textContent)
+      expect(options).toEqual(['Tiếng Việt', 'Tiếng Trung', 'Tiếng Anh'])
+    }
+  })
+
+  it('Việt → Anh: ra tiếng Anh, đọc bằng giọng tiếng Anh, không có phía chữ Hán', async () => {
+    googleSays('I want to drink tea')
+    const { user } = renderApp('/translate', ONBOARDED)
+    await pick(user, 'Dịch sang', 'en')
+    expect(screen.getByRole('button', { name: 'Dịch sang tiếng Anh' })).toBeInTheDocument()
+
+    await user.type(input(), 'tôi muốn uống trà{Enter}')
+
+    const result = await card()
+    expect(result).toHaveTextContent('I want to drink tea')
+    expect(within(result).getByRole('button', { name: 'Nghe câu tiếng Anh' })).toBeInTheDocument()
+    expect(within(result).queryByRole('button', { name: /Nghe phát âm/ })).not.toBeInTheDocument()
+    expect(speech.device).toEqual([{ text: 'I want to drink tea', lang: 'en' }])
+  })
+
+  it('Anh → Trung: ra chữ Hán kèm pinyin, tự đọc tiếng Trung, câu có trong khoá học thì bằng file thu sẵn', async () => {
+    googleSays('你好吗？', 'Nǐ hǎo ma?')
+    const { user } = renderApp('/translate', ONBOARDED)
+    await pick(user, 'Dịch từ', 'en')
+    await user.type(input('Tiếng Anh'), 'how are you?{Enter}')
+
+    const result = await card()
+    expect(result).toHaveTextContent('你好吗？')
+    expect(result).toHaveTextContent('Nǐ hǎo ma?')
+    expect(speech.chinese).toHaveLength(1)
+    expect(speech.chinese[0].clipUrl).toBeTruthy()
+  })
+
+  it('Trung → Anh: tiếng Anh to, bên dưới vẫn có chữ Hán và pinyin để nghe', async () => {
+    googleSays('I want to go to the bank', 'Wǒ xiǎng qù yínháng', 'source')
+    const { user } = renderApp('/translate', ONBOARDED)
+    await pick(user, 'Dịch từ', 'zh')
+    await pick(user, 'Dịch sang', 'en')
+    await user.type(input('Tiếng Trung'), '我想去银行{Enter}')
+
+    const result = await card()
+    expect(result).toHaveTextContent('I want to go to the bank')
+    expect(result).toHaveTextContent('Wǒ xiǎng qù yínháng')
+    expect(within(result).getByRole('button', { name: 'Nghe phát âm 我想去银行' })).toBeInTheDocument()
+  })
+
+  it('chọn trùng ngôn ngữ với bên kia thì hai bên đổi chỗ', async () => {
+    const { user } = renderApp('/translate', ONBOARDED)
+    await pick(user, 'Dịch từ', 'zh')
+
+    expect(screen.getByLabelText('Dịch từ')).toHaveValue('zh')
+    expect(screen.getByLabelText('Dịch sang')).toHaveValue('vi')
+    expect(input('Tiếng Trung')).toBeInTheDocument()
+  })
+
+  it('vừa dịch xong mà đổi ngôn ngữ đích thì dịch lại luôn câu đó', async () => {
+    const { user } = renderApp('/translate', ONBOARDED)
+    await user.type(input(), 'xin chào{Enter}')
+    expect(await card()).toHaveTextContent('你好')
+
+    googleSays('hello')
+    await pick(user, 'Dịch sang', 'en')
+
+    expect(await card()).toHaveTextContent('hello')
+    expect(calledParam('tl')).toBe('en')
+  })
+
+  it('dịch từ tiếng Anh thì micro nghe tiếng Anh', async () => {
+    const { user } = renderApp('/translate', ONBOARDED)
+    await pick(user, 'Dịch từ', 'en')
+    await user.click(screen.getByRole('button', { name: 'Nói tiếng Anh' }))
+
+    expect(dictation.calls[0].lang).toBe('en-US')
+  })
+})
+
+/** Một tham số của lần gọi Google gần nhất. */
+function calledParam(name: string): string | null {
+  const url = String(fetchMock.mock.calls.at(-1)?.[0] ?? '')
+  return new URL(url).searchParams.get(name)
+}
