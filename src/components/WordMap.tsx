@@ -1,5 +1,5 @@
 import { useId } from 'react'
-import { useProgress } from '../context/ProgressContext'
+import { useProgress, useT } from '../context/ProgressContext'
 import { useTheme } from '../context/ThemeContext'
 import { cn } from '../lib/cn'
 import {
@@ -34,6 +34,7 @@ const BLOOM_HEART = '#fff6d8'
 export function WordMap() {
   const { progress } = useProgress()
   const { theme } = useTheme()
+  const t = useT()
 
   const clusters = buildWordMap(progress)
   const { lit, total } = wordMapTotals(clusters)
@@ -48,12 +49,12 @@ export function WordMap() {
     <section aria-labelledby={headingId} className="surface p-5">
       <div className="flex items-baseline justify-between gap-3">
         <h2 id={headingId} className="font-semibold text-slate-900 dark:text-slate-100">
-          {night ? 'Bầu trời của bạn' : 'Khu vườn của bạn'}
+          {night ? t('Bầu trời của bạn', '你的星空') : t('Khu vườn của bạn', '你的花园')}
         </h2>
         <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
           {lit}
           <span className="font-normal text-slate-500 dark:text-slate-400">
-            /{total} {night ? 'sao' : 'bông'}
+            /{total} {night ? t('sao', '颗星') : t('bông', '朵花')}
           </span>
         </p>
       </div>
@@ -62,7 +63,7 @@ export function WordMap() {
         className="wordmap mt-3"
         viewBox={`0 0 ${WORD_MAP_VIEWBOX.width} ${WORD_MAP_VIEWBOX.height}`}
         role="img"
-        aria-label={`Bản đồ ${total} từ HSK 1, đã nhớ ${lit} từ. ${summary}`}
+        aria-label={t(`Bản đồ ${total} từ HSK 1, đã nhớ ${lit} từ. ${summary}`, `${total} 个越南语词的地图，已记住 ${lit} 个。${summary}`)}
       >
         {clusters.map((cluster, index) =>
           night ? (
@@ -97,7 +98,7 @@ export function WordMap() {
               }}
             />
             {cluster.title} {cluster.litCount}/{cluster.marks.length}
-            {cluster.complete && <span aria-label="đã xong">✓</span>}
+            {cluster.complete && <span aria-label={t('đã xong', '已完成')}>✓</span>}
           </li>
         ))}
       </ul>
@@ -105,9 +106,12 @@ export function WordMap() {
       <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">
         {lit === 0
           ? night
-            ? 'Trời còn tối om. Nhớ được từ đầu tiên là có ngôi sao đầu tiên.'
-            : 'Vườn còn trống. Nhớ được từ đầu tiên là có bông hoa đầu tiên.'
-          : `Mỗi từ bạn nhớ là ${night ? 'một ngôi sao' : 'một bông hoa'}. Còn ${total - lit} từ nữa là đủ cả khoá.`}
+            ? t('Trời còn tối om. Nhớ được từ đầu tiên là có ngôi sao đầu tiên.', '天还黑着。记住第一个词，就有第一颗星。')
+            : t('Vườn còn trống. Nhớ được từ đầu tiên là có bông hoa đầu tiên.', '花园还空着。记住第一个词，就开第一朵花。')
+          : t(
+              `Mỗi từ bạn nhớ là ${night ? 'một ngôi sao' : 'một bông hoa'}. Còn ${total - lit} từ nữa là đủ cả khoá.`,
+              `每记住一个词就多${night ? '一颗星' : '一朵花'}。再记住 ${total - lit} 个词就学完整门课了。`,
+            )}
       </p>
     </section>
   )

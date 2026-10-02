@@ -1,4 +1,4 @@
-import type { Achievement, UserProgress } from '../types'
+import type { Achievement, LearnTrack, UserProgress } from '../types'
 import { isNextDay } from './date'
 
 /** Phần thưởng XP theo mục 9 của bản thiết kế. */
@@ -82,9 +82,30 @@ export function isWordLearned(progress: UserProgress, wordId: string): boolean {
   return (progress.words[wordId]?.known ?? 0) > 0
 }
 
-/** Số từ đã học. Đi qua `isWordLearned` để chỉ có đúng một định nghĩa "đã nhớ". */
-export function learnedWordCount(progress: UserProgress): number {
-  return Object.keys(progress.words).filter((wordId) => isWordLearned(progress, wordId)).length
+/**
+ * Số từ đã học. Đi qua `isWordLearned` để chỉ có đúng một định nghĩa "đã nhớ".
+ *
+ * Có `track` thì chỉ đếm từ của khoá đó — từ khoá tiếng Việt có id bắt đầu bằng
+ * `vi-`. Không có thì đếm cả hai khoá, như thành tích vẫn đếm.
+ */
+export function learnedWordCount(progress: UserProgress, track?: LearnTrack): number {
+  return Object.keys(progress.words).filter(
+    (wordId) =>
+      isWordLearned(progress, wordId) && (track === undefined || wordId.startsWith('vi-') === (track === 'vi')),
+  ).length
+}
+
+/** Mô tả tiếng Trung của từng thành tích, cho người Trung học tiếng Việt. Tên giữ tiếng Anh như bản gốc. */
+export const ACHIEVEMENT_DESCRIPTION_ZH: Record<string, string> = {
+  'first-lesson': '完成第一课',
+  'words-10': '记住 10 个词',
+  'words-50': '记住 50 个词',
+  'words-100': '记住 100 个词',
+  'streak-3': '连续学习 3 天',
+  'streak-7': '连续学习 7 天',
+  'xp-500': '累计 500 XP',
+  'xp-1000': '累计 1,000 XP',
+  'unit-master': '完成 5 课',
 }
 
 /** Danh sách thành tích có thể mở khoá. */

@@ -6,7 +6,7 @@ import { MascotSays } from '../components/Mascot'
 import { MicButton, type MicStatus } from '../components/speaking/MicButton'
 import { SpeakingResult } from '../components/speaking/SpeakingResult'
 import { Button } from '../components/ui/Button'
-import { ALL_LESSONS, wordsOfLesson } from '../data/hsk1'
+import { findLesson, wordsOfLesson } from '../data/courses'
 import { MIC_PROBLEMS, PRIVACY_NOTE } from '../data/pronunciationTips'
 import { useProgress } from '../context/ProgressContext'
 import { audioUrlForWord } from '../lib/audioFiles'
@@ -42,7 +42,9 @@ export function Speaking() {
   const navigate = useNavigate()
   const { practiceSpeaking } = useProgress()
 
-  const lesson = ALL_LESSONS.find((item) => item.id === lessonId)
+  // Bộ chấm chỉ biết bốn thanh tiếng Trung, nên bài của khoá tiếng Việt không vào đây.
+  const found = findLesson(lessonId)
+  const lesson = found?.track === 'zh' ? found : undefined
   const words = wordsOfLesson(lessonId)
 
   const [index, setIndex] = useState(0)

@@ -18,7 +18,13 @@ export interface ExampleSentence {
   meaning: string
 }
 
-/** Một từ vựng. Mỗi từ luôn có đủ Hanzi / Pinyin / nghĩa để hiển thị trên flashcard. */
+/**
+ * Một từ vựng. Mỗi từ luôn có đủ Hanzi / Pinyin / nghĩa để hiển thị trên flashcard.
+ *
+ * Khoá tiếng Việt dùng chung kiểu này: `hanzi` là chữ của thứ tiếng đang học
+ * (`xin chào`), `pinyin` để rỗng vì chữ Quốc ngữ đã ghi sẵn cách đọc, và
+ * `meaning` là nghĩa tiếng Trung. Câu mẫu cũng vậy.
+ */
 export interface Word {
   id: string
   hanzi: string
@@ -197,9 +203,18 @@ export interface Achievement {
   icon: AchievementIconName
 }
 
+/**
+ * Thứ tiếng người học đang học, chọn ở màn chào.
+ *
+ * - `zh`: người Việt học tiếng Trung — khoá HSK 1, giao diện tiếng Việt.
+ * - `vi`: người Trung học tiếng Việt — khoá tiếng Việt, giao diện tiếng Trung.
+ */
+export type LearnTrack = 'zh' | 'vi'
+
 /** Toàn bộ tiến độ của người học. Đây là dữ liệu được lưu lại giữa các phiên. */
 export interface UserProgress {
   name: string
+  track: LearnTrack
   xp: number
   /** XP kiếm được trong ngày `lastActiveDate`. */
   xpToday: number

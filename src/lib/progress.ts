@@ -1,10 +1,11 @@
-import type { UserProgress } from '../types'
+import type { LearnTrack, UserProgress } from '../types'
 import { DEFAULT_DAILY_GOAL, XP_REWARDS, evaluateAchievements, nextStreak } from './gamification'
 
 /** Tiến độ khởi điểm của một người học mới. Tên rỗng nghĩa là chưa qua màn chào. */
-export function createProgress(name = ''): UserProgress {
+export function createProgress(name = '', track: LearnTrack = 'zh'): UserProgress {
   return {
     name,
+    track,
     xp: 0,
     xpToday: 0,
     dailyGoal: DEFAULT_DAILY_GOAL,
@@ -113,6 +114,14 @@ export function setDailyGoal(progress: UserProgress, goal: number): UserProgress
 export function setName(progress: UserProgress, name: string): UserProgress {
   const trimmed = name.trim()
   return { ...progress, name: trimmed === '' ? progress.name : trimmed }
+}
+
+/**
+ * Đổi thứ tiếng đang học. Tiến độ của khoá kia vẫn giữ nguyên: id bài và id từ
+ * của hai khoá không trùng nhau, nên quay lại là học tiếp đúng chỗ cũ.
+ */
+export function setTrack(progress: UserProgress, track: LearnTrack): UserProgress {
+  return { ...progress, track }
 }
 
 /** Người học đã qua màn chào và khai tên chưa. */

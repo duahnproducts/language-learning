@@ -17,7 +17,7 @@ import { resetRemoteAudioCache } from './remoteAudio'
 const audio = vi.hoisted(() => ({ hasRecorded: false }))
 vi.mock('./audioFiles', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./audioFiles')>()
-  return { ...actual, hasRecordedAudio: () => audio.hasRecorded }
+  return { ...actual, hasRecordedAudio: () => audio.hasRecorded, hasVietnameseAudio: () => false }
 })
 
 
@@ -430,5 +430,32 @@ describe('speakWithDeviceVoice', () => {
   it('trình duyệt không đọc được thì báo unsupported', async () => {
     vi.stubGlobal('speechSynthesis', undefined)
     await expect(speakWithDeviceVoice('Xin chào', 'vi')).resolves.toBe('unsupported')
+  })
+})
+
+describe('Phát âm tiếng Việt', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('chữ tiếng Việt thì đọc bằng giọng tiếng Việt, không bao giờ bằng giọng tiếng Trung', async () => {
+    const synth = install([voice('zh-CN'), voice('vi-VN')])
+
+    await expect(playWord({ text: 'xin chào' })).resolves.toBe('played')
+    expect(synth.spoken[0].voice?.lang).toBe('vi-VN')
+  })
+
+  it('máy không có giọng tiếng Việt thì báo rõ, kể cả khi có giọng tiếng Trung', async () => {
+    const synth = install([voice('zh-CN')])
+
+    await expect(playWord({ text: 'cảm ơn' })).resolves.toBe('no-vietnamese-voice')
+    expect(synth.spoken).toHaveLength(0)
+  })
+
+  it('trạng thái phát âm tính riêng cho từng thứ tiếng', () => {
+    install([voice('zh-CN')])
+    expect(getAudioStatus('zh')).toBe('ready')
+    expect(getAudioStatus('vi')).toBe('no-vietnamese-voice')
+
+    install([voice('vi-VN')])
+    expect(getAudioStatus('vi')).toBe('ready')
   })
 })

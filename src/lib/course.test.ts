@@ -71,3 +71,21 @@ describe('courseCompletion', () => {
     expect(courseCompletion([first, first, 'id-rác'])).toBe(courseCompletion([first]))
   })
 })
+
+describe('Khoá tiếng Việt', () => {
+  it('người mới bắt đầu từ bài đầu của khoá tiếng Việt', () => {
+    expect(nextLessonId([], 'vi')).toBe('vu1l1')
+  })
+
+  it('bài của khoá này không tính vào tiến độ khoá kia', () => {
+    expect(courseCompletion(['u1l1', 'u1l2'], 'vi')).toBe(0)
+    expect(courseCompletion(['vu1l1'], 'vi')).toBe(10)
+    expect(nextLessonId(['vu1l1'], 'zh')).toBe(ALL_LESSONS[0].id)
+  })
+
+  it('bài kế tiếp và vị trí bài tính trong đúng khoá của nó', () => {
+    expect(lessonAfter('vu1l1')).toBe('vu1l2')
+    expect(lessonAfter('vu5l2')).toBeNull()
+    expect(lessonPosition('vu2l1')).toBe(3)
+  })
+})

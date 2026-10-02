@@ -10,7 +10,7 @@
  * Xem `docs/scene.md`.
  */
 
-import { HSK1, WORDS } from '../data/hsk1'
+import { COURSES, WORD_BY_ID } from '../data/courses'
 import { isWordLearned } from './gamification'
 import type { UserProgress } from '../types'
 
@@ -73,8 +73,6 @@ const LAYOUT: Record<string, ReadonlyArray<readonly [number, number]>> = {
   ],
 }
 
-const WORD_BY_ID = new Map(WORDS.map((word) => [word.id, word]))
-
 /**
  * Tên unit rút gọn: `"Unit 3 · Gia đình"` thành `"Gia đình"`.
  * Chú thích dưới bản đồ chỉ đủ chỗ cho tên, số thứ tự đã nằm ở chỗ khác rồi.
@@ -92,13 +90,14 @@ export function shortUnitTitle(title: string): string {
  * sau này thêm từ mà quên đặt toạ độ thì test sẽ kêu chứ không im lặng giấu đi.
  */
 export function buildWordMap(progress: UserProgress): WordCluster[] {
-  return HSK1.units.map((unit) => {
-    const coords = LAYOUT[unit.id] ?? []
+  // Hai khoá cùng năm unit mười hai từ, nên dùng chung sơ đồ theo thứ tự unit.
+  return COURSES[progress.track].course.units.map((unit, unitIndex) => {
+    const coords = LAYOUT[`u${unitIndex + 1}`] ?? []
     const wordIds = unit.lessons.flatMap((lesson) => lesson.wordIds)
 
     const marks = wordIds.flatMap<WordMark>((wordId, index) => {
       const coord = coords[index]
-      const word = WORD_BY_ID.get(wordId)
+      const word = WORD_BY_ID[wordId]
       if (!coord || !word) return []
       return [
         {

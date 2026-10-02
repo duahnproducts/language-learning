@@ -1,4 +1,5 @@
 import { useId } from 'react'
+import { useT } from '../../context/ProgressContext'
 import { useAudioStatus } from '../../hooks/useAudioStatus'
 import { cn } from '../../lib/cn'
 import type { DictationExercise } from '../../types'
@@ -34,9 +35,12 @@ export function DictationInput({
   onChange,
   onSubmit,
 }: DictationInputProps) {
-  const audioStatus = useAudioStatus()
+  // Khoá tiếng Việt: đáp án chính là chữ, không có chữ Hán nào để đưa ra thay tiếng.
+  const vi = exercise.answer === exercise.hanzi
+  const audioStatus = useAudioStatus(vi ? 'vi' : 'zh')
   const inputId = useId()
   const canHear = audioStatus === 'ready'
+  const t = useT()
 
   return (
     <form
@@ -52,11 +56,13 @@ export function DictationInput({
             <AudioButton
               text={exercise.hanzi}
               wordId={exercise.wordId}
-              label="từ Zibi đọc"
+              label={t('từ Zibi đọc', 'Zibi 读的词')}
               size="md"
             />
-            <span>Nghe mình đọc rồi gõ lại bằng pinyin nhé.</span>
+            <span>{t('Nghe mình đọc rồi gõ lại bằng pinyin nhé.', '听我读，然后用越南语写下来。')}</span>
           </span>
+        ) : vi ? (
+          <span>设备无法发音，请根据下面的意思写出越南语。</span>
         ) : (
           <span className="flex items-center gap-3">
             <span className="font-hanzi text-3xl font-semibold">{exercise.hanzi}</span>
@@ -66,18 +72,18 @@ export function DictationInput({
       </MascotSays>
 
       <p className="mt-4 text-sm text-slate-600 dark:text-slate-400">
-        Gợi ý: nghĩa là <span className="font-semibold">“{exercise.meaning}”</span>.
+        {t('Gợi ý: nghĩa là', '提示：意思是')} <span className="font-semibold">“{exercise.meaning}”</span>.
       </p>
 
       <label htmlFor={inputId} className="mt-5 block font-semibold text-slate-900 dark:text-slate-100">
-        Pinyin bạn nghe được
+        {t('Pinyin bạn nghe được', '你听到的越南语')}
       </label>
       <input
         id={inputId}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         disabled={checked}
-        placeholder="ví dụ: ni hao"
+        placeholder={t('ví dụ: ni hao', '例如：xin chao')}
         autoComplete="off"
         autoCapitalize="none"
         autoCorrect="off"
@@ -93,7 +99,10 @@ export function DictationInput({
         )}
       />
       <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-        Không cần gõ dấu thanh — “ni hao” hay “nǐ hǎo” đều được.
+        {t(
+          'Không cần gõ dấu thanh — “ni hao” hay “nǐ hǎo” đều được.',
+          '不用打声调符号——“xin chao” 和 “xin chào” 都算对。',
+        )}
       </p>
     </form>
   )

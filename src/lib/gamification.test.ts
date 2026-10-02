@@ -175,3 +175,19 @@ describe('DEFAULT_DAILY_GOAL', () => {
     expect(DEFAULT_DAILY_GOAL).toBe(50)
   })
 })
+
+describe('learnedWordCount theo khoá', () => {
+  it('chỉ đếm từ của khoá được hỏi, không hỏi thì đếm cả hai', () => {
+    const progress = {
+      ...createProgress('Lan'),
+      words: {
+        nihao: { wordId: 'nihao', known: 1, unknown: 0, lastReviewed: '' },
+        'vi-xinchao': { wordId: 'vi-xinchao', known: 2, unknown: 0, lastReviewed: '' },
+        'vi-ban': { wordId: 'vi-ban', known: 1, unknown: 0, lastReviewed: '' },
+      },
+    }
+    expect(learnedWordCount(progress, 'zh')).toBe(1)
+    expect(learnedWordCount(progress, 'vi')).toBe(2)
+    expect(learnedWordCount(progress)).toBe(3)
+  })
+})

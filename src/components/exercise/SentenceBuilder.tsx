@@ -1,4 +1,5 @@
-import { WORD_BY_ID } from '../../data/hsk1'
+import { useT } from '../../context/ProgressContext'
+import { WORD_BY_ID } from '../../data/courses'
 import { cn } from '../../lib/cn'
 import type { SentenceExercise } from '../../types'
 import { SentenceLine } from '../ExampleSentences'
@@ -49,6 +50,7 @@ export function SentenceBuilder({
 }: SentenceBuilderProps) {
   const labelOf = new Map(exercise.tiles.map((tile) => [tile.id, tile.label]))
   const used = new Set(picked)
+  const t = useT()
 
   return (
     <div className="mt-5">
@@ -57,7 +59,7 @@ export function SentenceBuilder({
       {/* Dòng trả lời: hai dòng kẻ để người học thấy câu dài tới đâu thì hết chỗ. */}
       <div
         role="group"
-        aria-label="Câu của bạn"
+        aria-label={t('Câu của bạn', '你的句子')}
         className={cn(
           'sentence-lines mt-6 flex min-h-28 flex-wrap content-start gap-2 border-b-2 pb-3',
           !checked && 'border-slate-300 dark:border-slate-600',
@@ -84,9 +86,9 @@ export function SentenceBuilder({
       </div>
 
       {checked ? (
-        <section aria-label="Cả câu" className="sentence-reveal mt-8">
+        <section aria-label={t('Cả câu', '整句')} className="sentence-reveal mt-8">
           <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase dark:text-slate-400">
-            Nghe lại cả câu
+            {t('Nghe lại cả câu', '再听一遍整句')}
           </p>
           <SentenceLine
             sentence={exercise.sentence}
@@ -95,7 +97,7 @@ export function SentenceBuilder({
           />
         </section>
       ) : (
-        <div role="group" aria-label="Các mảnh chữ" className="mt-8 flex flex-wrap justify-center gap-2">
+        <div role="group" aria-label={t('Các mảnh chữ', '词块')} className="mt-8 flex flex-wrap justify-center gap-2">
           {exercise.tiles.map((tile) =>
             used.has(tile.id) ? (
               // Ô trống giữ chỗ, cùng cỡ với mảnh thật.

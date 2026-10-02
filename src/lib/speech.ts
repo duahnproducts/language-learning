@@ -12,7 +12,7 @@
  * giọng tiếng Trung thì Web Speech API không phát gì mà cũng không báo lỗi.
  */
 
-import { audioUrlForWord, hasRecordedAudio } from './audioFiles'
+import { audioUrlForWord, hasRecordedAudio, hasVietnameseAudio } from './audioFiles'
 import { remoteAudioUrl } from './remoteAudio'
 import { hasSupabase } from '../services/supabase'
 
@@ -22,11 +22,30 @@ export type AudioStatus =
   | 'ready'
   /** Trình duyệt đọc được nhưng máy chưa cài giọng tiếng Trung nào. */
   | 'no-chinese-voice'
+  /** Như trên, cho khoá tiếng Việt: không có file thu sẵn, máy cũng không có giọng tiếng Việt. */
+  | 'no-vietnamese-voice'
   /** Trình duyệt không hỗ trợ đọc và cũng không có file thu sẵn. */
   | 'unsupported'
 
 /** Kết quả một lần bấm nút phát âm. */
-export type PlayResult = 'played' | 'no-chinese-voice' | 'unsupported' | 'error'
+export type PlayResult = 'played' | 'no-chinese-voice' | 'no-vietnamese-voice' | 'unsupported' | 'error'
+
+/** Chữ Hán (khối CJK cơ bản và mở rộng A). */
+const HAN = /[㐀-鿿]/
+
+/**
+ * Chuỗi cần đọc là tiếng Việt hay tiếng Trung.
+ *
+ * Nút phát âm của khoá tiếng Việt đi chung đường với khoá tiếng Trung, và hai
+ * thứ chữ không bao giờ lẫn nhau: câu tiếng Trung luôn có chữ Hán, câu tiếng
+ * Việt thì không có chữ nào.
+ */
+export function isVietnameseText(text: string): boolean {
+  return !HAN.test(text)
+}
+
+/** Thứ tiếng của chuỗi cần đọc. */
+export type AudioLang = 'zh' | 'vi'
 
 /**
  * Nút phát âm đang ở chặng nào.
@@ -74,7 +93,12 @@ export function findChineseVoice(): SpeechSynthesisVoice | null {
  * Có file thu sẵn hoặc có Supabase thì phát được, không cần máy cài giọng
  * tiếng Trung — đó chính là điều mà phương án audio nhắm tới.
  */
-export function getAudioStatus(): AudioStatus {
+export function getAudioStatus(lang: AudioLang = 'zh'): AudioStatus {
+  // Tiếng Việt chỉ có hai nguồn: file thu sẵn của khoá tiếng Việt, và giọng của máy.
+  if (lang === 'vi') {
+    if (hasVietnameseAudio() || findDeviceVoice('vi')) return 'ready'
+    return synth() ? 'no-vietnamese-voice' : 'unsupported'
+  }
   if (hasRecordedAudio() || hasSupabase()) return 'ready'
   if (findChineseVoice()) return 'ready'
   if (synth()) return 'no-chinese-voice'
@@ -90,16 +114,19 @@ export function getAudioStatus(): AudioStatus {
  *
  * @returns hàm huỷ theo dõi.
  */
-export function subscribeAudioStatus(onChange: (status: AudioStatus) => void): () => void {
+export function subscribeAudioStatus(
+  onChange: (status: AudioStatus) => void,
+  lang: AudioLang = 'zh',
+): () => void {
   const speech = synth()
   if (!speech) return () => {}
 
   let stopped = false
-  let last = getAudioStatus()
+  let last = getAudioStatus(lang)
 
   const check = () => {
     if (stopped) return
-    const next = getAudioStatus()
+    const next = getAudioStatus(lang)
     if (next !== last) {
       last = next
       onChange(next)
@@ -214,6 +241,16 @@ export async function playWord(input: {
     const result = await playFile(local)
     if (result === 'played') return result
     // File hỏng hoặc trình duyệt chặn tự phát: vẫn còn ba cửa nữa.
+  }
+
+  // Tiếng Việt: Supabase và giọng tiếng Trung đều không đọc được, chỉ còn giọng
+  // tiếng Việt của máy.
+  if (isVietnameseText(input.text)) {
+    if (!synth()) return 'unsupported'
+    const voice = findDeviceVoice('vi')
+    if (!voice) return 'no-vietnamese-voice'
+    stage('speaking')
+    return playVoice(input.text, voice)
   }
 
   // 2 và 3. CDN Supabase, rồi Edge Function nếu CDN chưa có file.

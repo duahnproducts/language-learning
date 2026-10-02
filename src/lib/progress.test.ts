@@ -4,6 +4,7 @@ import {
   awardXp,
   completeLesson,
   createProgress,
+  setTrack,
   isOnboarded,
   recordCorrectAnswer,
   recordSpeakingPractice,
@@ -236,5 +237,15 @@ describe('kịch bản một ngày học trọn vẹn', () => {
     expect(progress.xpToday).toBe(50)
     expect(progress.streak).toBe(1)
     expect(progress.xp).toBe(50 + XP_REWARDS.dailyGoal)
+  })
+})
+
+describe('setTrack', () => {
+  it('đổi hướng học mà giữ nguyên tiến độ của cả hai khoá', () => {
+    const before = { ...createProgress('Lan'), completedLessonIds: ['u1l1'], xp: 50 }
+    const after = setTrack(before, 'vi')
+    expect(after.track).toBe('vi')
+    expect(after.completedLessonIds).toEqual(['u1l1'])
+    expect(after.xp).toBe(50)
   })
 })

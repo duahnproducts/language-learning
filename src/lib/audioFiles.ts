@@ -55,3 +55,8 @@ export function audioUrlForSentence(sentence: ExampleSentence): string | null {
 export function hasRecordedAudio(): boolean {
   return Object.keys(AUDIO_FILE_URLS).length > 0
 }
+
+/** Đã có file audio thu sẵn nào cho khoá tiếng Việt chưa — tên file bắt đầu bằng `vi-`, theo id từ. */
+export function hasVietnameseAudio(): boolean {
+  return Object.keys(AUDIO_FILE_URLS).some((name) => name.startsWith('vi-'))
+}

@@ -101,3 +101,20 @@ describe('clearProgress', () => {
     expect(loadProgress()).toEqual(createProgress())
   })
 })
+
+describe('Hướng học', () => {
+  it('bản lưu từ trước khi có lựa chọn này được coi là người Việt học tiếng Trung', () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ name: 'Duy', xp: 10 }))
+    expect(loadProgress().track).toBe('zh')
+  })
+
+  it('đọc lại đúng hướng học tiếng Việt', () => {
+    saveProgress(createProgress('Lan', 'vi'))
+    expect(loadProgress().track).toBe('vi')
+  })
+
+  it('giá trị lạ thì về mặc định', () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ track: 'fr' }))
+    expect(loadProgress().track).toBe('zh')
+  })
+})

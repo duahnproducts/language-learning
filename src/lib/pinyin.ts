@@ -24,6 +24,9 @@ export function normalizePinyin(text: string): string {
     .normalize('NFD')
     .replace(COMBINING_MARKS, '')
     .toLowerCase()
+    // Bài nghe–viết của khoá tiếng Việt chấm qua đúng hàm này: đ không tách
+    // được bằng NFD nên đổi tay, để "deu" và "đều" là một.
+    .replace(/đ/g, 'd')
     .replace(/v/g, 'u')
     .replace(/[^a-z]/g, '')
 }

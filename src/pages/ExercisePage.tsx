@@ -7,12 +7,13 @@ import { DictationInput } from '../components/exercise/DictationInput'
 import { SentenceBuilder } from '../components/exercise/SentenceBuilder'
 import { ToneChoice } from '../components/exercise/ToneChoice'
 import { Button } from '../components/ui/Button'
-import { ALL_LESSONS, WORDS, WORD_BY_ID, wordsOfLesson } from '../data/hsk1'
-import { useProgress } from '../context/ProgressContext'
+import { COURSES, WORD_BY_ID, findLesson, wordsOfLesson } from '../data/courses'
+import { useProgress, useT } from '../context/ProgressContext'
 import { useAudioStatus } from '../hooks/useAudioStatus'
 import { cn } from '../lib/cn'
 import {
   KIND_LABEL,
+  KIND_LABEL_ZH,
   buildExercises,
   createRng,
   gradeChoice,
@@ -66,13 +67,14 @@ export function ExercisePage() {
   const { lessonId = '' } = useParams()
   const navigate = useNavigate()
   const { answerCorrect, finishLesson } = useProgress()
-  const audioStatus = useAudioStatus()
+  const t = useT()
 
-  const lesson = ALL_LESSONS.find((item) => item.id === lessonId)
-  const exercises = useMemo(
-    () => buildExercises(wordsOfLesson(lessonId), WORDS, createRng(seedFromText(lessonId))),
-    [lessonId],
-  )
+  const lesson = findLesson(lessonId)
+  const audioStatus = useAudioStatus(lesson?.track)
+  const exercises = useMemo(() => {
+    const track = findLesson(lessonId)?.track ?? 'zh'
+    return buildExercises(wordsOfLesson(lessonId), COURSES[track].words, createRng(seedFromText(lessonId)), track)
+  }, [lessonId])
 
   const [index, setIndex] = useState(0)
   const [choiceId, setChoiceId] = useState('')
@@ -87,6 +89,7 @@ export function ExercisePage() {
   if (!lesson || exercises.length === 0) return <Navigate to="/learn" replace />
 
   const exercise = exercises[index]
+  const vi = lesson.track === 'vi'
   const isLast = index === exercises.length - 1
   const isChoice = isChoiceExercise(exercise)
 
@@ -171,7 +174,7 @@ export function ExercisePage() {
   return (
     <>
       <FocusHeader
-        title={`${KIND_LABEL[exercise.kind]} · ${index + 1}/${exercises.length}`}
+        title={`${(vi ? KIND_LABEL_ZH : KIND_LABEL)[exercise.kind]} · ${index + 1}/${exercises.length}`}
         progress={50 + ((index + (checked ? 1 : 0)) / exercises.length) * 50}
         backTo={`/lesson/${lessonId}`}
       />
@@ -186,7 +189,7 @@ export function ExercisePage() {
                 <AudioButton
                   text={WORD_BY_ID[exercise.wordId]?.hanzi ?? ''}
                   wordId={exercise.wordId}
-                  label="từ trong câu hỏi"
+                  label={t('từ trong câu hỏi', '题目里的词')}
                   size="lg"
                 />
                 {/* Không có âm thì bài nghe không làm được, nên phải đưa ra một
@@ -195,7 +198,16 @@ export function ExercisePage() {
                     không được, vì pinyin chính là đáp án. Chữ Hán là thứ duy
                     nhất còn lại mà vẫn để bài làm được. */}
                 {audioStatus !== 'ready' ? (
-                  exercise.kind === 'listening' ? (
+                  vi ? (
+                    // Khoá tiếng Việt không có phiên âm nào để thay cho tiếng, nên
+                    // đưa nghĩa ra: bài thành "chọn từ tiếng Việt mang nghĩa này".
+                    <p className="max-w-xs text-center text-sm text-slate-500 dark:text-slate-400">
+                      设备无法发音，所以给出这个词的意思：{' '}
+                      <span className="font-medium text-slate-700 dark:text-slate-200">
+                        {WORD_BY_ID[exercise.wordId]?.meaning}
+                      </span>
+                    </p>
+                  ) : exercise.kind === 'listening' ? (
                     <p className="max-w-xs text-center text-sm text-slate-500 dark:text-slate-400">
                       Máy chưa phát âm được nên bài nghe hiện pinyin thay thế:{' '}
                       <span className="font-medium text-slate-700 dark:text-slate-200">
@@ -231,6 +243,8 @@ export function ExercisePage() {
                       className={cn(
                         'w-full rounded-2xl border-2 p-4 text-left text-lg font-medium transition',
                         exercise.kind === 'listening' && 'font-hanzi text-2xl',
+                        // Sáu cách viết của khoá tiếng Việt không vừa một hàng nếu to như bốn cách của pinyin.
+                        exercise.kind === 'tone-pair' && vi && 'py-3',
                         // Bốn phương án chỉ lệch nhau đúng một dấu thanh, nên
                         // phải đủ to để nhìn ra dấu mà không cần căng mắt.
                         exercise.kind === 'tone-pair' && 'text-center text-2xl tracking-wide',
@@ -337,10 +351,10 @@ export function ExercisePage() {
           <div role="status" className="mb-3">
             <MascotSays mood={isCorrect ? 'mung' : 'tiec'} tone={isCorrect ? 'right' : 'wrong'}>
               {isCorrect ? (
-                `Chính xác! +${XP_REWARDS.correctAnswer} XP`
+                t(`Chính xác! +${XP_REWARDS.correctAnswer} XP`, `答对了！+${XP_REWARDS.correctAnswer} XP`)
               ) : (
                 <>
-                  Chưa đúng. <WrongAnswerHint exercise={exercise} />
+                  {t('Chưa đúng.', '不对哦。')} <WrongAnswerHint exercise={exercise} />
                 </>
               )}
             </MascotSays>
@@ -354,11 +368,11 @@ export function ExercisePage() {
             variant={isCorrect ? 'success' : 'danger'}
             onClick={goNext}
           >
-            {isLast ? 'Xem kết quả' : 'Tiếp tục'}
+            {isLast ? t('Xem kết quả', '查看结果') : t('Tiếp tục', '继续')}
           </Button>
         ) : (
           <Button size="lg" fullWidth disabled={!hasAnswer} onClick={check}>
-            Kiểm tra
+            {t('Kiểm tra', '检查')}
           </Button>
         )}
       </div>
@@ -368,17 +382,24 @@ export function ExercisePage() {
 
 /** Lời chữa bài của Zibi khi trả lời sai — mỗi dạng bài cần chỉ ra một thứ khác. */
 function WrongAnswerHint({ exercise }: { exercise: Exercise }) {
+  const t = useT()
   switch (exercise.kind) {
     case 'matching':
-      return <>Xem lại cách ghép ở trên nhé.</>
+      return <>{t('Xem lại cách ghép ở trên nhé.', '看看上面正确的配对吧。')}</>
     case 'sentence':
       return (
         <>
-          Câu đúng là <span className="font-hanzi font-semibold">{exercise.pieces.join(' ')}</span>.
+          {t('Câu đúng là', '正确的句子是')}{' '}
+          <span className="font-hanzi font-semibold">{exercise.pieces.join(' ')}</span>.
         </>
       )
     case 'dictation':
-      return (
+      // Khoá tiếng Việt: đáp án chính là chữ, không có chữ Hán nào để kèm.
+      return exercise.answer === exercise.hanzi ? (
+        <>
+          正确答案是 <span className="font-semibold">{exercise.answer}</span>（{exercise.meaning}）。
+        </>
+      ) : (
         <>
           Đáp án là <span className="font-semibold">{exercise.answer}</span>{' '}
           <span className="font-hanzi">({exercise.hanzi})</span>.
@@ -399,7 +420,7 @@ function WrongAnswerHint({ exercise }: { exercise: Exercise }) {
     default:
       return (
         <>
-          Đáp án là "{exercise.choices.find((choice) => choice.id === exercise.correctChoiceId)?.label}".
+          {t('Đáp án là', '正确答案是')} "{exercise.choices.find((choice) => choice.id === exercise.correctChoiceId)?.label}".
         </>
       )
   }

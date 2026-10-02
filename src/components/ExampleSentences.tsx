@@ -1,3 +1,4 @@
+import { useT } from '../context/ProgressContext'
 import { audioUrlForSentence } from '../lib/audioFiles'
 import { cn } from '../lib/cn'
 import { highlightTarget, type Segment } from '../lib/sentences'
@@ -44,19 +45,22 @@ export function SentenceLine({
 }: SentenceLineProps) {
   const { hanzi, pinyin } = highlightTarget(sentence, target)
   const onBrand = surface === 'onBrand'
+  const t = useT()
+  // Câu của khoá tiếng Việt không có pinyin.
+  const chinese = sentence.pinyin !== ''
 
   return (
     <div className={cn('flex items-start gap-3 text-left', className)}>
       <AudioButton
         text={sentence.hanzi}
         clipUrl={audioUrlForSentence(sentence)}
-        label={`câu ${sentence.hanzi}`}
+        label={t(`câu ${sentence.hanzi}`, `句子 ${sentence.hanzi}`)}
         size="sm"
         className="mt-0.5"
       />
       <div className="min-w-0 flex-1">
         <p
-          lang="zh-CN"
+          lang={chinese ? 'zh-CN' : 'vi'}
           className={cn(
             'font-hanzi text-lg leading-snug',
             onBrand ? 'text-white' : 'text-slate-900 dark:text-slate-100',
@@ -67,18 +71,20 @@ export function SentenceLine({
             markClassName={onBrand ? 'text-amber-200' : 'text-brand-600 dark:text-brand-300'}
           />
         </p>
-        <p
-          lang="zh-Latn-pinyin"
-          className={cn(
-            'text-sm leading-snug',
-            onBrand ? 'text-brand-100' : 'text-slate-500 dark:text-slate-400',
-          )}
-        >
-          <Marked
-            segments={pinyin}
-            markClassName={onBrand ? 'text-amber-200' : 'text-brand-600 dark:text-brand-300'}
-          />
-        </p>
+        {chinese && (
+          <p
+            lang="zh-Latn-pinyin"
+            className={cn(
+              'text-sm leading-snug',
+              onBrand ? 'text-brand-100' : 'text-slate-500 dark:text-slate-400',
+            )}
+          >
+            <Marked
+              segments={pinyin}
+              markClassName={onBrand ? 'text-amber-200' : 'text-brand-600 dark:text-brand-300'}
+            />
+          </p>
+        )}
         <p
           className={cn(
             'mt-0.5 text-sm leading-snug',
@@ -99,8 +105,9 @@ export function SentenceLine({
  * ghép với những từ khác ra sao — thanh điệu, nhịp và chỗ ngắt đều đổi khi vào câu.
  */
 export function ExampleSentences({ word, className }: { word: Word; className?: string }) {
+  const t = useT()
   return (
-    <ul aria-label={`Câu mẫu với ${word.hanzi}`} className={cn('space-y-2', className)}>
+    <ul aria-label={t(`Câu mẫu với ${word.hanzi}`, `${word.hanzi} 的例句`)} className={cn('space-y-2', className)}>
       {word.examples.map((sentence) => (
         <li key={sentence.hanzi}>
           <SentenceLine

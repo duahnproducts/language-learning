@@ -1,14 +1,15 @@
 import type { CSSProperties } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
+import { useT } from '../context/ProgressContext'
 import { cn } from '../lib/cn'
 import { activeNavIndex } from '../lib/nav'
 
 const ITEMS = [
-  { to: '/', label: 'Trang chủ', end: true, Icon: HomeIcon },
-  { to: '/learn', label: 'Học', end: false, Icon: BookIcon },
-  { to: '/translate', label: 'Dịch', end: false, Icon: TranslateIcon },
-  { to: '/progress', label: 'Tiến độ', end: false, Icon: ChartIcon },
-  { to: '/profile', label: 'Cá nhân', end: false, Icon: PersonIcon },
+  { to: '/', label: ['Trang chủ', '首页'], end: true, Icon: HomeIcon },
+  { to: '/learn', label: ['Học', '学习'], end: false, Icon: BookIcon },
+  { to: '/translate', label: ['Dịch', '翻译'], end: false, Icon: TranslateIcon },
+  { to: '/progress', label: ['Tiến độ', '进度'], end: false, Icon: ChartIcon },
+  { to: '/profile', label: ['Cá nhân', '我的'], end: false, Icon: PersonIcon },
 ] as const
 
 /**
@@ -25,22 +26,23 @@ const ITEMS = [
 export function BottomNav() {
   const { pathname } = useLocation()
   const index = activeNavIndex(pathname, ITEMS)
+  const t = useT()
 
   return (
     <nav
-      aria-label="Điều hướng chính"
+      aria-label={t('Điều hướng chính', '主导航')}
       data-active-index={index}
       className="bubble-track bubble-bar"
       style={{ '--count': ITEMS.length, '--index': Math.max(index, 0) } as CSSProperties}
     >
       <span aria-hidden="true" className="bubble-thumb" data-hidden={index < 0} />
-      {ITEMS.map(({ to, label, end, Icon }) => (
+      {ITEMS.map(({ to, label: [vi, zh], end, Icon }) => (
         <NavLink
           key={to}
           to={to}
           end={end}
-          aria-label={label}
-          title={label}
+          aria-label={t(vi, zh)}
+          title={t(vi, zh)}
           className={({ isActive }) =>
             cn(
               'flex items-center justify-center rounded-full transition active:scale-90',

@@ -5,6 +5,7 @@ import type {
   Exercise,
   MatchingExercise,
   SentenceExercise,
+  LearnTrack,
   ToneExercise,
   Word,
 } from '../types'
@@ -18,6 +19,7 @@ import {
   tonedSyllableIndex,
   wordToneVariants,
 } from './tones'
+import { toneVariants, vietnameseSyllables } from './vietnamese'
 
 /**
  * Bộ sinh số giả ngẫu nhiên có seed (mulberry32).
@@ -106,6 +108,7 @@ export function buildMatchingExercise(
   words: readonly Word[],
   rng: () => number,
   pairs = 4,
+  prompt = 'Ghép chữ Hán với nghĩa đúng',
 ): MatchingExercise | null {
   const chosen = shuffle(words, rng).slice(0, Math.min(pairs, words.length))
   if (chosen.length < 2) return null
@@ -117,7 +120,7 @@ export function buildMatchingExercise(
   )
   const answerKey = Object.fromEntries(chosen.map((word) => [`l-${word.id}`, `r-${word.id}`]))
 
-  return { id: 'matching', kind: 'matching', prompt: 'Ghép chữ Hán với nghĩa đúng', left, right, answerKey }
+  return { id: 'matching', kind: 'matching', prompt, left, right, answerKey }
 }
 
 /** Câu ngắn hơn thế này thì ghép chẳng có gì để nghĩ; dài hơn thì quá sức người mới. */
@@ -251,8 +254,80 @@ export function buildTonePairExercise(word: Word): ChoiceExercise | null {
   }
 }
 
+/**
+ * Bài ghép câu tiếng Việt: mỗi âm tiết một mảnh, đề bài là nghĩa tiếng Trung.
+ *
+ * Tiếng Việt viết sẵn khoảng trắng giữa các âm tiết nên không cần bộ tách từ
+ * như chữ Hán. Mảnh nhiễu là âm tiết của những từ khác, không trùng âm tiết nào
+ * của câu đúng (không kể hoa thường) — trùng thì câu có hai cách ghép đều đúng.
+ */
+export function buildVietnameseSentenceExercise(
+  word: Word,
+  pool: readonly Word[],
+  rng: () => number,
+): SentenceExercise | null {
+  const chosen = word.examples
+    .map((sentence) => ({ sentence, pieces: vietnameseSyllables(sentence.hanzi) }))
+    .find(({ pieces }) => pieces.length >= SENTENCE_MIN_TILES && pieces.length <= SENTENCE_MAX_TILES)
+  if (!chosen) return null
+
+  const { sentence, pieces } = chosen
+  const inAnswer = new Set(pieces.map((piece) => piece.toLowerCase()))
+  const distractors = shuffle(
+    [...new Set(pool.flatMap((item) => vietnameseSyllables(item.hanzi.toLowerCase())))],
+    rng,
+  )
+    .filter((syllable) => !inAnswer.has(syllable))
+    .slice(0, SENTENCE_DISTRACTORS)
+
+  const tiles: Choice[] = shuffle(
+    [...pieces, ...distractors].map((label, index) => ({ id: `t${index}`, label })),
+    rng,
+  )
+
+  return {
+    id: `sentence-${word.id}`,
+    kind: 'sentence',
+    wordId: word.id,
+    prompt: '把词语排成正确的句子',
+    meaning: sentence.meaning,
+    sentence,
+    answer: pieces.join(''),
+    pieces,
+    tiles,
+  }
+}
+
+/**
+ * Bài phân biệt thanh tiếng Việt: nghe một từ, chọn trong sáu cách viết chỉ
+ * lệch nhau đúng cái thanh — `chao / chào / cháo / chảo / chão / chạo`.
+ *
+ * Sáu thanh là chỗ người Trung khó nhất khi học tiếng Việt: hỏi và ngã, sắc và
+ * nặng nghe rất gần nhau với tai quen bốn thanh. Trả `null` khi từ không có âm
+ * tiết nào mang dấu.
+ */
+export function buildVietnameseTonePairExercise(word: Word): ChoiceExercise | null {
+  const result = toneVariants(word.hanzi)
+  if (!result) return null
+
+  return {
+    id: `tone-pair-${word.id}`,
+    kind: 'tone-pair',
+    wordId: word.id,
+    prompt: '听一听，选出正确的声调',
+    choices: result.variants.map((label, position) => ({ id: `c-tone-${position}`, label })),
+    correctChoiceId: `c-tone-${result.correct}`,
+  }
+}
+
 /** Các dạng bài xoay vòng theo từng từ của bài học. */
 const ROTATION = ['multiple-choice', 'pinyin', 'listening', 'sentence', 'dictation'] as const
+
+/**
+ * Khoá tiếng Việt bỏ bài chọn pinyin: chữ Quốc ngữ đã ghi cách đọc, không có
+ * phiên âm nào để chọn.
+ */
+const VI_ROTATION = ['multiple-choice', 'listening', 'sentence', 'dictation'] as const
 
 /**
  * Sinh bộ bài tập cho một lesson: mỗi từ một câu, xoay vòng qua năm dạng, rồi
@@ -266,8 +341,10 @@ export function buildExercises(
   words: readonly Word[],
   pool: readonly Word[],
   rng: () => number = createRng(1),
+  track: LearnTrack = 'zh',
 ): Exercise[] {
   if (words.length === 0) return []
+  if (track === 'vi') return buildVietnameseExercises(words, pool, rng)
 
   const distractorPool = pool.length >= 4 ? pool : words
   const lexicon = [...pool.map((word) => word.hanzi), ...EXTRA_LEXICON]
@@ -321,6 +398,47 @@ export function buildExercises(
 
   const matching = buildMatchingExercise(words, rng)
   return [...exercises, ...buildToneDrills(words, rng), ...(matching ? [matching] : [])]
+}
+
+/**
+ * Bộ bài tập của khoá tiếng Việt, đề bài bằng tiếng Trung.
+ *
+ * Cùng khung với khoá tiếng Trung: mỗi từ một câu xoay vòng, rồi hai bài phân
+ * biệt thanh và một bài ghép nối. Nghe–viết dùng chung `gradeDictation`: gõ
+ * không dấu vẫn được tính đúng, vì bàn phím Trung không gõ sẵn được ả hay ữ.
+ */
+function buildVietnameseExercises(
+  words: readonly Word[],
+  pool: readonly Word[],
+  rng: () => number,
+): Exercise[] {
+  const distractorPool = pool.length >= 4 ? pool : words
+
+  const multipleChoice = (word: Word) =>
+    buildChoiceExercise(word, distractorPool, 'multiple-choice', `“${word.hanzi}”是什么意思？`, (item) => item.meaning, rng)
+
+  const exercises: Exercise[] = words.map((word, index) => {
+    switch (VI_ROTATION[index % VI_ROTATION.length]) {
+      case 'sentence':
+        return buildVietnameseSentenceExercise(word, distractorPool, rng) ?? multipleChoice(word)
+      case 'dictation':
+        // Đáp án là chính chữ tiếng Việt — khoá này không có pinyin.
+        return { ...buildDictationExercise(word), answer: word.hanzi, prompt: '听写：写出你听到的越南语' }
+      case 'listening':
+        return buildChoiceExercise(word, distractorPool, 'listening', '听一听，选出你听到的词', (item) => item.hanzi, rng)
+      default:
+        return multipleChoice(word)
+    }
+  })
+
+  // Hai bài phân biệt thanh rơi vào hai từ khác nhau, như khoá tiếng Trung.
+  const drills = shuffle(words, rng)
+    .map(buildVietnameseTonePairExercise)
+    .filter((exercise): exercise is ChoiceExercise => exercise !== null)
+    .slice(0, 2)
+
+  const matching = buildMatchingExercise(words, rng, 4, '把越南语和中文意思配对')
+  return [...exercises, ...drills, ...(matching ? [matching] : [])]
 }
 
 /**
@@ -398,6 +516,18 @@ export function gradeDictation(exercise: DictationExercise, input: string): bool
 /** Chấm bài chọn thanh. `picked` là 0 khi người học chưa chọn gì. */
 export function gradeTone(exercise: ToneExercise, picked: number): boolean {
   return picked === exercise.tone
+}
+
+/** Nhãn tiếng Trung của từng dạng bài tập, cho người Trung học tiếng Việt. */
+export const KIND_LABEL_ZH: Record<Exercise['kind'], string> = {
+  'multiple-choice': '选择题',
+  pinyin: '拼音',
+  listening: '听力',
+  matching: '配对',
+  sentence: '排句子',
+  dictation: '听写',
+  tone: '声调',
+  'tone-pair': '辨别声调',
 }
 
 /** Nhãn tiếng Việt của từng dạng bài tập, dùng cho tiêu đề màn hình. */

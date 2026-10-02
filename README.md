@@ -38,6 +38,10 @@ chạy thẳng file TypeScript.
 
 ## Đã có trong bản này
 
+- **Hai hướng học**: mở app lần đầu chọn **Học tiếng Trung** (người Việt) hay
+  **学越南语** (người Trung). Người Trung học khoá tiếng Việt 60 từ cùng khung
+  chủ đề, giao diện tiếng Trung, có bài phân biệt sáu thanh. Đổi được ở màn Cá
+  nhân, tiến độ hai khoá giữ riêng. Xem [docs/languages.md](docs/languages.md).
 - **Nội dung**: khoá HSK 1 với 5 unit, 10 bài học, 60 từ. Mỗi từ có Hanzi, pinyin, nghĩa và
   **ba câu mẫu** ghép từ đó với những từ khác — câu nào cũng có pinyin, nghĩa và
   **audio đọc cả câu**, từ đang học được tô ở cả chữ Hán lẫn pinyin. Xem

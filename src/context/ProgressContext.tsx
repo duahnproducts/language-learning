@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import type { Achievement, UserProgress } from '../types'
+import type { Achievement, LearnTrack, UserProgress } from '../types'
 import { todayIso } from '../lib/date'
 import { newlyUnlocked } from '../lib/gamification'
 import {
@@ -11,6 +11,7 @@ import {
   recordWordReview,
   setDailyGoal,
   setName,
+  setTrack,
 } from '../lib/progress'
 import { clearProgress, loadProgress, saveProgress } from '../lib/storage'
 
@@ -28,6 +29,7 @@ export interface ProgressContextValue {
   finishLesson: (lessonId: string) => void
   updateName: (name: string) => void
   updateDailyGoal: (goal: number) => void
+  updateTrack: (track: LearnTrack) => void
   resetEverything: () => void
 }
 
@@ -44,6 +46,11 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     saveProgress(progress)
   }, [progress])
+
+  // Giao diện đổi thứ tiếng theo hướng học, nên trình đọc màn hình cũng phải đổi giọng.
+  useEffect(() => {
+    document.documentElement.lang = progress.track === 'vi' ? 'zh-CN' : 'vi'
+  }, [progress.track])
 
   /**
    * Áp dụng một phép biến đổi thuần và gom lại những thành tích vừa mở.
@@ -80,6 +87,7 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
       finishLesson: (lessonId) => apply((p) => completeLesson(p, lessonId, today)),
       updateName: (name) => apply((p) => setName(p, name)),
       updateDailyGoal: (goal) => apply((p) => setDailyGoal(p, goal)),
+      updateTrack: (track) => apply((p) => setTrack(p, track)),
       resetEverything: () => {
         clearProgress()
         setNewAchievements([])
@@ -91,6 +99,26 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
   )
 
   return <ProgressContext.Provider value={value}>{children}</ProgressContext.Provider>
+}
+
+/**
+ * Chọn câu theo ngôn ngữ giao diện: người Trung học tiếng Việt thì đọc giao diện
+ * tiếng Trung, còn lại là tiếng Việt. Viết cặp câu ngay tại chỗ dùng, khỏi phải
+ * dò bảng khoá.
+ *
+ *     const t = useT()
+ *     t('Học tiếp', '继续学习')
+ */
+export function useT(): (vi: string, zh: string) => string {
+  return useTrack() === 'vi' ? (_vi, zh) => zh : (vi) => vi
+}
+
+/**
+ * Thứ tiếng đang học. Ngoài `ProgressProvider` — các test dựng riêng một nút
+ * hay một thẻ — thì coi như khoá tiếng Trung, giao diện tiếng Việt.
+ */
+export function useTrack(): LearnTrack {
+  return useContext(ProgressContext)?.progress.track ?? 'zh'
 }
 
 /** Truy cập tiến độ người học. Phải nằm trong `ProgressProvider`. */

@@ -5,10 +5,10 @@ import { MicIcon } from '../components/icons/UiIcons'
 import { Mascot } from '../components/Mascot'
 import { Button } from '../components/ui/Button'
 import { ProgressBar } from '../components/ui/ProgressBar'
-import { ALL_LESSONS } from '../data/hsk1'
-import { useProgress } from '../context/ProgressContext'
+import { findLesson } from '../data/courses'
+import { useProgress, useT } from '../context/ProgressContext'
 import { lessonAfter } from '../lib/course'
-import { effectiveStreak } from '../lib/gamification'
+import { ACHIEVEMENT_DESCRIPTION_ZH, effectiveStreak } from '../lib/gamification'
 import type { Achievement } from '../types'
 
 interface ResultState {
@@ -22,6 +22,7 @@ export function Result() {
   const { lessonId = '' } = useParams()
   const location = useLocation()
   const { progress, today, newAchievements, clearNewAchievements } = useProgress()
+  const t = useT()
 
   // Giữ lại danh sách thành tích ngay khi vào màn hình, rồi dọn hàng chờ
   // để lần học sau không hiển thị lại những thứ cũ.
@@ -32,7 +33,7 @@ export function Result() {
   }, [])
 
   const state = location.state as ResultState | null
-  const lesson = ALL_LESSONS.find((item) => item.id === lessonId)
+  const lesson = findLesson(lessonId)
 
   // Vào thẳng URL này hoặc tải lại trang thì không có dữ liệu bài vừa làm.
   if (!lesson || !state) return <Navigate to="/learn" replace />
@@ -49,39 +50,46 @@ export function Result() {
           <Mascot mood={percent >= 60 ? 'mung' : 'tiec'} size={128} />
         </div>
         <h1 className="mt-3 text-3xl font-bold text-slate-900 dark:text-slate-100">
-          {percent === 100 ? 'Hoàn hảo!' : percent >= 60 ? 'Làm tốt lắm!' : 'Cứ từ từ thôi'}
+          {percent === 100
+            ? t('Hoàn hảo!', '满分！')
+            : percent >= 60
+              ? t('Làm tốt lắm!', '做得好！')
+              : t('Cứ từ từ thôi', '慢慢来')}
         </h1>
         <p className="mt-2 text-slate-600 dark:text-slate-400">
           {lesson.unitTitle} · {lesson.title}
         </p>
         <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">
           {percent === 100
-            ? 'Zibi: không sai câu nào luôn! Mình phục bạn đấy.'
+            ? t('Zibi: không sai câu nào luôn! Mình phục bạn đấy.', 'Zibi：一题都没错！我服了你。')
             : percent >= 60
-              ? 'Zibi: chắc tay rồi. Mai quay lại là nhớ lâu hơn nữa.'
-              : 'Zibi: sai vài câu là chuyện thường thôi. Ôn lại bài này một lượt nhé.'}
+              ? t('Zibi: chắc tay rồi. Mai quay lại là nhớ lâu hơn nữa.', 'Zibi：很稳！明天再来，记得更牢。')
+              : t(
+                  'Zibi: sai vài câu là chuyện thường thôi. Ôn lại bài này một lượt nhé.',
+                  'Zibi：错几题很正常，再复习一遍这一课吧。',
+                )}
         </p>
       </div>
 
       <div className="mt-8 surface p-5">
         <div className="flex items-baseline justify-between">
-          <span className="font-semibold text-slate-900 dark:text-slate-100">Kết quả bài tập</span>
+          <span className="font-semibold text-slate-900 dark:text-slate-100">{t('Kết quả bài tập', '练习结果')}</span>
           <span className="text-sm font-medium text-slate-500 dark:text-slate-400">
-            {state.correct}/{state.total} câu đúng
+            {t(`${state.correct}/${state.total} câu đúng`, `答对 ${state.correct}/${state.total} 题`)}
           </span>
         </div>
         <ProgressBar
           value={percent}
           tone={percent >= 60 ? 'emerald' : 'brand'}
-          label="Tỉ lệ trả lời đúng"
+          label={t('Tỉ lệ trả lời đúng', '正确率')}
           className="mt-3"
         />
 
         <dl className="mt-5 grid grid-cols-3 gap-3 text-center">
-          <Stat label="XP nhận được" value={`+${state.xpEarned}`} />
-          <Stat label="Tổng XP" value={progress.xp} />
+          <Stat label={t('XP nhận được', '获得 XP')} value={`+${state.xpEarned}`} />
+          <Stat label={t('Tổng XP', '总 XP')} value={progress.xp} />
           <Stat
-            label="Streak"
+            label={t('Streak', '连续天数')}
             value={
               <span className="inline-flex items-center gap-1">
                 {streak}
@@ -94,20 +102,25 @@ export function Result() {
 
       {goalMet && (
         <p className="mt-4 rounded-2xl bg-emerald-50 p-4 text-center text-sm font-medium text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-200">
-          Bạn đã đạt mục tiêu {progress.dailyGoal} XP hôm nay. Hẹn gặp lại ngày mai!
+          {t(
+            `Bạn đã đạt mục tiêu ${progress.dailyGoal} XP hôm nay. Hẹn gặp lại ngày mai!`,
+            `你已完成今天 ${progress.dailyGoal} XP 的目标，明天见！`,
+          )}
         </p>
       )}
 
       {unlocked.length > 0 && (
         <section className="mt-4 rounded-3xl bg-gold-400/15 p-5 ring-1 ring-gold-400/40 dark:bg-gold-400/10">
-          <h2 className="font-semibold text-slate-900 dark:text-slate-100">Thành tích mới</h2>
+          <h2 className="font-semibold text-slate-900 dark:text-slate-100">{t('Thành tích mới', '新成就')}</h2>
           <ul className="mt-3 space-y-2">
             {unlocked.map((achievement) => (
               <li key={achievement.id} className="flex items-center gap-3">
                 <AchievementIcon name={achievement.icon} size={36} className="shrink-0" />
                 <span>
                   <span className="block font-semibold text-slate-900 dark:text-slate-100">{achievement.title}</span>
-                  <span className="block text-sm text-slate-600 dark:text-slate-400">{achievement.description}</span>
+                  <span className="block text-sm text-slate-600 dark:text-slate-400">
+                    {t(achievement.description, ACHIEVEMENT_DESCRIPTION_ZH[achievement.id])}
+                  </span>
                 </span>
               </li>
             ))}
@@ -119,24 +132,26 @@ export function Result() {
         {nextId ? (
           <Link to={`/lesson/${nextId}`}>
             <Button size="lg" fullWidth>
-              Học bài tiếp theo
+              {t('Học bài tiếp theo', '学下一课')}
             </Button>
           </Link>
         ) : (
           <Link to="/progress">
             <Button size="lg" fullWidth>
-              Xem tiến độ của bạn
+              {t('Xem tiến độ của bạn', '查看你的进度')}
             </Button>
           </Link>
         )}
-        <Link to={`/lesson/${lessonId}/speaking`}>
-          <Button variant="secondary" size="lg" fullWidth>
-            <MicIcon size={20} /> Luyện nói các từ vừa học
-          </Button>
-        </Link>
+        {lesson.track === 'zh' && (
+          <Link to={`/lesson/${lessonId}/speaking`}>
+            <Button variant="secondary" size="lg" fullWidth>
+              <MicIcon size={20} /> Luyện nói các từ vừa học
+            </Button>
+          </Link>
+        )}
         <Link to="/">
           <Button variant="secondary" size="lg" fullWidth>
-            Về trang chủ
+            {t('Về trang chủ', '回到首页')}
           </Button>
         </Link>
       </div>

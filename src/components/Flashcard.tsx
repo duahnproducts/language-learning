@@ -1,3 +1,4 @@
+import { useT } from '../context/ProgressContext'
 import type { Word } from '../types'
 import { AudioButton } from './AudioButton'
 import { SentenceLine } from './ExampleSentences'
@@ -19,6 +20,7 @@ interface FlashcardProps {
  */
 export function Flashcard({ word, flipped, onFlip }: FlashcardProps) {
   const [sentence] = word.examples
+  const t = useT()
 
   return (
     <div className="flip-scene w-full">
@@ -26,7 +28,7 @@ export function Flashcard({ word, flipped, onFlip }: FlashcardProps) {
         type="button"
         onClick={onFlip}
         aria-pressed={flipped}
-        aria-label={flipped ? 'Lật lại mặt trước' : 'Lật thẻ để xem nghĩa'}
+        aria-label={flipped ? t('Lật lại mặt trước', '翻回正面') : t('Lật thẻ để xem nghĩa', '翻卡看意思')}
         className="flip-card relative block h-72 w-full cursor-pointer text-left sm:h-80"
         data-flipped={flipped}
         data-testid="flashcard"
@@ -40,7 +42,7 @@ export function Flashcard({ word, flipped, onFlip }: FlashcardProps) {
             {word.hanzi}
           </p>
           <AudioButton text={word.hanzi} wordId={word.id} label={word.hanzi} size="md" />
-          <p className="text-sm text-slate-400 dark:text-slate-500">Chạm để xem nghĩa</p>
+          <p className="text-sm text-slate-400 dark:text-slate-500">{t('Chạm để xem nghĩa', '点一下看意思')}</p>
         </div>
 
         {/* Mặt sau */}
@@ -49,7 +51,7 @@ export function Flashcard({ word, flipped, onFlip }: FlashcardProps) {
           className="flip-face flip-face-back absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-3xl bg-brand-500 px-5 py-6 text-center text-white shadow-lg dark:bg-brand-600"
         >
           <p className="font-hanzi text-4xl font-semibold">{word.hanzi}</p>
-          <p className="text-xl text-brand-100">{word.pinyin}</p>
+          {word.pinyin && <p className="text-xl text-brand-100">{word.pinyin}</p>}
           <p className="text-xl font-semibold">{word.meaning}</p>
           {sentence && (
             <SentenceLine

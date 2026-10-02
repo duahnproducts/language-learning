@@ -73,12 +73,14 @@ export function highlightTarget(
     pinyin: [{ text: sentence.pinyin, target: false }],
   }
 
-  const at = target === '' ? -1 : sentence.hanzi.indexOf(target)
+  // Không phân biệt hoa thường: câu tiếng Việt viết hoa chữ đầu, `Xin chào` vẫn
+  // phải tô được cho từ `xin chào`. Chữ Hán thì không có hoa thường gì để đổi.
+  const at = target === '' ? -1 : sentence.hanzi.toLowerCase().indexOf(target.toLowerCase())
   if (at === -1 || !isAligned(sentence)) return plain
 
   const hanzi = merge([
     { text: sentence.hanzi.slice(0, at), target: false },
-    { text: target, target: true },
+    { text: sentence.hanzi.slice(at, at + target.length), target: true },
     { text: sentence.hanzi.slice(at + target.length), target: false },
   ])
 

@@ -3,8 +3,8 @@ import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import { Flashcard } from '../components/Flashcard'
 import { FocusHeader } from '../components/FocusHeader'
 import { Button } from '../components/ui/Button'
-import { ALL_LESSONS, wordsOfLesson } from '../data/hsk1'
-import { useProgress } from '../context/ProgressContext'
+import { findLesson, wordsOfLesson } from '../data/courses'
+import { useProgress, useT } from '../context/ProgressContext'
 
 /**
  * Bước 2: lật từng thẻ và tự đánh giá.
@@ -14,8 +14,9 @@ export function Flashcards() {
   const { lessonId = '' } = useParams()
   const navigate = useNavigate()
   const { reviewWord } = useProgress()
+  const t = useT()
 
-  const lesson = ALL_LESSONS.find((item) => item.id === lessonId)
+  const lesson = findLesson(lessonId)
   const words = wordsOfLesson(lessonId)
 
   const [index, setIndex] = useState(0)
@@ -39,7 +40,7 @@ export function Flashcards() {
   return (
     <>
       <FocusHeader
-        title={`Flashcard · ${index + 1}/${words.length}`}
+        title={`${t('Flashcard', '闪卡')} · ${index + 1}/${words.length}`}
         progress={25 + (index / words.length) * 25}
         backTo={`/lesson/${lessonId}`}
       />
@@ -50,20 +51,20 @@ export function Flashcards() {
         {flipped ? (
           <div className="grid grid-cols-2 gap-3">
             <Button variant="danger" size="lg" onClick={() => rate(false)}>
-              Chưa nhớ
+              {t('Chưa nhớ', '还没记住')}
             </Button>
             <Button variant="success" size="lg" onClick={() => rate(true)}>
-              Đã nhớ
+              {t('Đã nhớ', '记住了')}
             </Button>
           </div>
         ) : (
           <Button size="lg" fullWidth onClick={() => setFlipped(true)}>
-            Lật thẻ
+            {t('Lật thẻ', '翻卡')}
           </Button>
         )}
 
         <p className="text-center text-sm text-slate-400 dark:text-slate-500">
-          Tự trả lời trong đầu trước khi lật — nhớ lâu hơn nhiều.
+          {t('Tự trả lời trong đầu trước khi lật — nhớ lâu hơn nhiều.', '翻卡前先在心里回答——记得更牢。')}
         </p>
       </div>
     </>

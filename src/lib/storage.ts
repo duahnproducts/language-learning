@@ -59,6 +59,8 @@ export function loadProgress(storage: Storage = localStorage): UserProgress {
   const data = parsed as Record<string, unknown>
   return {
     name: asString(data.name, defaults.name),
+    // Bản lưu từ trước khi có lựa chọn này đều là người Việt học tiếng Trung.
+    track: data.track === 'vi' ? 'vi' : 'zh',
     xp: Math.max(0, asNumber(data.xp, 0)),
     xpToday: Math.max(0, asNumber(data.xpToday, 0)),
     dailyGoal: Math.max(10, asNumber(data.dailyGoal, defaults.dailyGoal)),
