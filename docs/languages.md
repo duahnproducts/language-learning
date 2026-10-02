@@ -62,14 +62,27 @@ Trung. Nút ẩn đi, vào thẳng đường dẫn thì bị đưa về.
 
 ## 4. Âm thanh
 
-`playWord` thấy chuỗi không có chữ Hán nào thì coi là tiếng Việt: thử file thu
-sẵn `vi-<id>.mp3` nếu có, rồi giọng tiếng Việt của máy. Không bao giờ rơi sang
-Supabase hay giọng tiếng Trung. Không có giọng thì nút báo rõ cách cài giọng
-tiếng Việt, bài nghe đưa nghĩa tiếng Trung ra thay.
+60 file từ và 180 file câu thu sẵn trong `src/assets/audio/vi/`, sinh bằng Piper
+với giọng **`vi_VN-vais1000-medium`** — giọng nữ miền Bắc, cao độ trung vị đo
+được 234 Hz (giọng nam cỡ 100–140 Hz). Đọc chậm hơn mặc định khoảng 15%
+(`length_scale` 1.5: câu 7 âm tiết từ 1,46 s lên 1,71 s). Tổng 1,3 MB, chạy
+được khi mất mạng như audio tiếng Trung.
 
-**Chưa có file thu sẵn cho tiếng Việt.** iPhone và Android thường có sẵn giọng
-tiếng Việt; Windows thì hay thiếu. Sinh bằng Piper như tiếng Trung là bước tiếp
-theo — cần tải giọng `vi_VN` của Piper.
+```bash
+npm run generate-audio-vi             # chỉ sinh clip mới hoặc clip đổi chữ
+npm run generate-audio-vi -- --force  # sinh lại tất cả, ví dụ khi đổi giọng
+```
+
+Thư mục và manifest riêng là bắt buộc: `generate-audio.py` của khoá tiếng Trung
+tự xoá mọi file trong `sentences/` không thuộc khoá tiếng Trung.
+`audioFiles.test.ts` báo đỏ khi thiếu file, thừa file, hay chữ đã sửa mà chưa
+sinh lại.
+
+`playWord` thấy chuỗi không có chữ Hán thì coi là tiếng Việt: file thu sẵn
+trước, rồi giọng tiếng Việt của máy, không bao giờ rơi sang Supabase hay giọng
+tiếng Trung. Giọng của máy (còn dùng ở màn Dịch) **ưu tiên giọng nữ** theo tên —
+HoaiMy, Linh, Google Tiếng Việt trước; An, NamMinh sau — vì Web Speech không cho
+biết giới tính. Tốc độ 0,75 ở bài học, 0,85 ở màn Dịch.
 
 ## 5. Giao diện hai thứ tiếng
 

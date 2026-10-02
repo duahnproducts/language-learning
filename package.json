@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit",
     "prewarm-audio": "node --env-file-if-exists=.env.local scripts/prewarm-audio.ts",
     "generate-audio": "python scripts/generate-audio.py",
+    "generate-audio-vi": "python scripts/generate-audio-vi.py",
     "generate-icons": "python scripts/generate-icons.py"
   },
   "dependencies": {

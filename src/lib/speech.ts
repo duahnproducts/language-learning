@@ -250,7 +250,7 @@ export async function playWord(input: {
     const voice = findDeviceVoice('vi')
     if (!voice) return 'no-vietnamese-voice'
     stage('speaking')
-    return playVoice(input.text, voice)
+    return playVoice(input.text, voice, VI_LESSON_RATE)
   }
 
   // 2 và 3. CDN Supabase, rồi Edge Function nếu CDN chưa có file.
@@ -283,7 +283,30 @@ const PREFERRED_DEVICE_LANGS: Record<DeviceVoiceLang, string[]> = {
   en: ['en-us', 'en-gb', 'en'],
 }
 
-/** Giọng của máy cho một thứ tiếng, hoặc null nếu máy không có. */
+/**
+ * Tốc độ giọng tiếng Việt của máy. Bài học đọc chậm hơn màn Dịch: người học
+ * đang tập nghe từng âm tiết, còn ở màn Dịch thì cần nghe trọn ý.
+ */
+export const VI_LESSON_RATE = 0.75
+export const VI_TRANSLATE_RATE = 0.85
+
+/**
+ * Giọng nữ tiếng Việt quen gặp, xếp trước: Microsoft HoaiMy (Edge), Linh
+ * (iPhone, Mac), Google Tiếng Việt (Chrome). Giọng nam quen gặp xếp sau:
+ * Microsoft An (Windows), NamMinh (Edge). Web Speech không cho biết giới tính,
+ * nên chỉ đoán được qua tên — máy chỉ có giọng nam thì vẫn đọc giọng nam.
+ */
+const VI_FEMALE = /hoai ?my|hoài my|\blinh\b|google|female|nữ/i
+// Không bắt chữ "Nam" đứng riêng: tên giọng nào cũng có "Việt Nam".
+const VI_MALE = /\ban\b|nam ?minh|\bmale\b/i
+
+function genderRank(voice: SpeechSynthesisVoice): number {
+  if (VI_FEMALE.test(voice.name)) return 0
+  if (VI_MALE.test(voice.name)) return 2
+  return 1
+}
+
+/** Giọng của máy cho một thứ tiếng, hoặc null nếu máy không có. Tiếng Việt thì ưu tiên giọng nữ. */
 export function findDeviceVoice(lang: DeviceVoiceLang): SpeechSynthesisVoice | null {
   const speech = synth()
   if (!speech) return null
@@ -297,7 +320,8 @@ export function findDeviceVoice(lang: DeviceVoiceLang): SpeechSynthesisVoice | n
     const index = preferred.indexOf(langOf(voice))
     return index === -1 ? preferred.length : index
   }
-  return [...matching].sort((a, b) => rankOf(a) - rankOf(b))[0]
+  const gender = lang === 'vi' ? genderRank : () => 0
+  return [...matching].sort((a, b) => gender(a) - gender(b) || rankOf(a) - rankOf(b))[0]
 }
 
 /** Kết quả đọc một câu bằng giọng của máy. */
@@ -316,6 +340,6 @@ export async function speakWithDeviceVoice(text: string, lang: DeviceVoiceLang):
   if (!synth()) return 'unsupported'
   const voice = findDeviceVoice(lang)
   if (!voice) return 'no-voice'
-  const result = await playVoice(text, voice, 1)
+  const result = await playVoice(text, voice, lang === 'vi' ? VI_TRANSLATE_RATE : 1)
   return result === 'played' ? 'played' : 'error'
 }

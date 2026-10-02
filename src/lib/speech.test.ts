@@ -6,6 +6,8 @@ import {
   playWord,
   speakWithDeviceVoice,
   subscribeAudioStatus,
+  VI_LESSON_RATE,
+  VI_TRANSLATE_RATE,
 } from './speech'
 import { resetRemoteAudioCache } from './remoteAudio'
 
@@ -397,13 +399,42 @@ describe('audio cả câu', () => {
 })
 
 describe('speakWithDeviceVoice', () => {
-  it('đọc bản dịch tiếng Việt bằng giọng tiếng Việt của máy, tốc độ bình thường', async () => {
+  it('đọc bản dịch tiếng Việt bằng giọng tiếng Việt của máy, chậm hơn bình thường một chút', async () => {
     const synth = install([voice('zh-CN'), voice('vi-VN', 'Linh')])
 
     await expect(speakWithDeviceVoice('Xin chào', 'vi')).resolves.toBe('played')
     expect(synth.spoken[0].text).toBe('Xin chào')
     expect(synth.spoken[0].voice?.name).toBe('Linh')
+    expect(synth.spoken[0].rate).toBe(VI_TRANSLATE_RATE)
+    expect(VI_TRANSLATE_RATE).toBeLessThan(1)
+  })
+
+  it('tiếng Anh vẫn đọc tốc độ bình thường', async () => {
+    const synth = install([voice('en-US')])
+    await speakWithDeviceVoice('Hello', 'en')
     expect(synth.spoken[0].rate).toBe(1)
+  })
+
+  it('máy có cả giọng nam lẫn giọng nữ tiếng Việt thì chọn giọng nữ', () => {
+    install([
+      voice('vi-VN', 'Microsoft An - Vietnamese (Vietnam)'),
+      voice('vi-VN', 'Microsoft NamMinh Online (Natural) - Vietnamese (Vietnam)'),
+      voice('vi-VN', 'Microsoft HoaiMy Online (Natural) - Vietnamese (Vietnam)'),
+    ])
+    expect(findDeviceVoice('vi')?.name).toMatch(/HoaiMy/)
+
+    install([voice('vi-VN', 'Microsoft An - Vietnamese (Vietnam)'), voice('vi-VN', 'Google Tiếng Việt')])
+    expect(findDeviceVoice('vi')?.name).toBe('Google Tiếng Việt')
+  })
+
+  it('giọng không rõ giới tính vẫn được chọn trước giọng nam', () => {
+    install([voice('vi-VN', 'Microsoft An - Vietnamese (Vietnam)'), voice('vi-VN', 'Tiếng Việt Việt Nam')])
+    expect(findDeviceVoice('vi')?.name).toBe('Tiếng Việt Việt Nam')
+  })
+
+  it('máy chỉ có giọng nam thì vẫn đọc, không im lặng', () => {
+    install([voice('vi-VN', 'Microsoft An - Vietnamese (Vietnam)')])
+    expect(findDeviceVoice('vi')?.name).toMatch(/An/)
   })
 
   it('đọc tiếng Anh bằng giọng tiếng Anh, ưu tiên giọng Mỹ', async () => {
@@ -441,6 +472,9 @@ describe('Phát âm tiếng Việt', () => {
 
     await expect(playWord({ text: 'xin chào' })).resolves.toBe('played')
     expect(synth.spoken[0].voice?.lang).toBe('vi-VN')
+    // Bài học đọc chậm hơn cả màn Dịch.
+    expect(synth.spoken[0].rate).toBe(VI_LESSON_RATE)
+    expect(VI_LESSON_RATE).toBeLessThan(VI_TRANSLATE_RATE)
   })
 
   it('máy không có giọng tiếng Việt thì báo rõ, kể cả khi có giọng tiếng Trung', async () => {

@@ -28,6 +28,7 @@ npm run dev
 | `npm run typecheck` | Kiểm tra kiểu TypeScript |
 | `npm run build` | Build bản production vào `dist/` |
 | `npm run generate-audio` | Sinh file phát âm cho từ mới |
+| `npm run generate-audio-vi` | Sinh file phát âm cho khoá tiếng Việt |
 | `npm run generate-icons` | Vẽ lại icon của app |
 | `npm run prewarm-audio -- --local --dry-run` | Liệt kê audio sẽ sinh, không chạm mạng |
 | `npm run prewarm-audio -- --local` | Sinh 60 file mp3 vào `src/assets/audio/` |
@@ -40,7 +41,8 @@ chạy thẳng file TypeScript.
 
 - **Hai hướng học**: mở app lần đầu chọn **Học tiếng Trung** (người Việt) hay
   **学越南语** (người Trung). Người Trung học khoá tiếng Việt 60 từ cùng khung
-  chủ đề, giao diện tiếng Trung, có bài phân biệt sáu thanh. Đổi được ở màn Cá
+  chủ đề, giao diện tiếng Trung, có bài phân biệt sáu thanh, audio giọng nữ thu sẵn cho cả 60 từ và 180
+  câu mẫu. Đổi được ở màn Cá
   nhân, tiến độ hai khoá giữ riêng. Xem [docs/languages.md](docs/languages.md).
 - **Nội dung**: khoá HSK 1 với 5 unit, 10 bài học, 60 từ. Mỗi từ có Hanzi, pinyin, nghĩa và
   **ba câu mẫu** ghép từ đó với những từ khác — câu nào cũng có pinyin, nghĩa và

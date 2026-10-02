@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import manifest from '../assets/audio/manifest.json'
+import viManifest from '../assets/audio/vi/manifest.json'
 import { WORDS, WORD_BY_ID } from '../data/hsk1'
+import { VI_WORDS, VI_WORD_BY_ID } from '../data/vi1'
 import {
   AUDIO_FILE_URLS,
   SENTENCE_AUDIO_URLS,
+  VI_AUDIO_FILE_URLS,
+  VI_SENTENCE_AUDIO_URLS,
+  hasVietnameseAudio,
   audioUrlForSentence,
   audioUrlForWord,
   hasRecordedAudio,
@@ -100,5 +105,34 @@ describe('audio của câu mẫu', () => {
 
   it('câu chưa có trong khoá học thì không có file', () => {
     expect(audioUrlForSentence({ hanzi: '我爱你。', pinyin: 'Wǒ ài nǐ.', meaning: '' })).toBeNull()
+  })
+})
+
+describe('audio của khoá tiếng Việt', () => {
+  const SPOKEN_VI: Record<string, string> = viManifest.clips
+  const SENTENCES = VI_WORDS.flatMap((word) => word.examples)
+
+  it('từ nào, câu mẫu nào cũng có file, và không có file nào thừa', () => {
+    expect(VI_WORDS.filter((word) => !VI_AUDIO_FILE_URLS[word.id]).map((word) => word.id)).toEqual([])
+    expect(Object.keys(VI_AUDIO_FILE_URLS).filter((id) => !VI_WORD_BY_ID[id])).toEqual([])
+    expect(SENTENCES.filter((sentence) => !audioUrlForSentence(sentence)).map((s) => s.hanzi)).toEqual([])
+    const keys = new Set(SENTENCES.map(sentenceAudioKey))
+    expect(Object.keys(VI_SENTENCE_AUDIO_URLS).filter((key) => !keys.has(key))).toEqual([])
+    expect(hasVietnameseAudio()).toBe(true)
+  })
+
+  it('file nào cũng được đọc từ đúng chữ đang có trong dữ liệu', () => {
+    // Sửa chữ mà quên `npm run generate-audio-vi` thì file cũ vẫn phát, chỉ là đọc chữ cũ.
+    expect(VI_WORDS.filter((word) => SPOKEN_VI[`vi/${word.id}.mp3`] !== word.hanzi).map((w) => w.id)).toEqual([])
+    expect(
+      SENTENCES.filter((s) => SPOKEN_VI[`vi/sentences/${sentenceAudioKey(s)}.mp3`] !== s.hanzi).map((s) => s.hanzi),
+    ).toEqual([])
+  })
+
+  it('cùng một giọng nữ tiếng Việt, không lẫn với giọng tiếng Trung', () => {
+    expect(viManifest.voice).toBe('vi_VN-vais1000-medium')
+    expect(audioUrlForWord('vi-xinchao')).toBe(VI_AUDIO_FILE_URLS['vi-xinchao'])
+    // Tên file câu của hai khoá băm cùng một cách: không được trùng nhau.
+    expect(Object.keys(VI_SENTENCE_AUDIO_URLS).filter((key) => key in SENTENCE_AUDIO_URLS)).toEqual([])
   })
 })
